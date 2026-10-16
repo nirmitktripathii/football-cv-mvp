@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Copyrighted source video, large data and model weights stay local
+data/raw/
+data/processed/
+artifacts/
+*.mp4
+*.mkv
+*.webm
+*.pt
+*.onnx
+*.engine
+
+# Tooling
+graphify-out/
+.ipynb_checkpoints/
+.env
+HF_TOKEN*

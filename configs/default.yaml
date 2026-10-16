@@ -1,0 +1,91 @@
+# Pipeline configuration for the ISL MVP clip. Every stage reads this file;
+# override any value on the CLI with --set key.subkey=value.
+
+clip:
+  id: isl_bfc_scd_gw1_2026
+  video_path: data/raw/isl_bfc_scd_2026-10-10_gw1_section.mp4
+  source_url: https://www.youtube.com/watch?v=gDI508P5F3g
+  source_title: "FULL REPLAY (English): Bengaluru FC vs Sporting Club Delhi (3-2) | MG ISL 2026-27 | GW 1"
+  source_channel: MG Indian Super League
+  source_upload_date: "2026-10-10"
+  # The section starts at this offset in the full replay (yt-dlp --download-sections "*3120-3480").
+  source_offset_s: 3120
+  # Replay second at which the on-screen match clock read 00:00, measured from probe frames:
+  # the clock read 21:00 at replay second 3125. Used only for match-clock labels.
+  kickoff_replay_s: 1865
+  home_team: Bengaluru FC
+  away_team: Sporting Club Delhi
+  home_kit: blue
+  away_kit: white
+  # Direction of play in this clip window (pitch frame: x = 0 is the image-left goal of the main camera).
+  # Measured, not assumed: in calibrated frames near each goal, the deepest outfield player belonged to
+  # the away team at the left goal (segments 0, 3, 13: 149 v 33 frames) and to the home team at the right
+  # goal (segments 11, 12, 13: 263 v 27). So the home team defends the right goal and attacks left.
+  home_attacks: left
+
+paths:
+  processed_dir: data/processed
+  artifacts_dir: artifacts
+  manifests_dir: data/manifests
+
+sampling:
+  fps: 5.0              # sampled frames per second of video
+  start_s: 0.0
+  end_s: null           # null = whole clip
+  preview_every_s: 30.0 # write one representative JPEG every N seconds
+
+detection:
+  model: yolo11m.pt     # Ultralytics COCO weights (AGPL-3.0); auto-downloaded on first use
+  imgsz: 1280           # high input size so the ~8 px ball is not lost by downscaling
+  conf_person: 0.25
+  conf_ball: 0.10
+  device: 0             # CUDA device index, or "cpu"
+  half: false  # FP16 on GTX 16xx cards returns NaN boxes (verified on this GTX 1650); keep FP32
+  batch: 8
+
+tracking:
+  track_activation_threshold: 0.30
+  lost_track_buffer_s: 2.0
+  minimum_matching_threshold: 0.8
+  minimum_consecutive_frames: 2
+
+teams:
+  # Torso colour clustering: k=2 kit clusters; referees and goalkeepers are flagged as
+  # "other" when their colour is far from both kit centroids.
+  min_box_height_px: 18
+  other_distance_factor: 2.2
+
+shots:
+  # A sampled frame is a usable "wide tactical view" when enough of the image is pitch-green
+  # and players look small. Close-ups, replays and crowd shots fail this test.
+  min_green_ratio: 0.45
+  max_median_person_height_px: 95
+  min_persons: 6
+  cut_hist_threshold: 0.45
+
+calibration:
+  pitch_length_m: 105.0  # reference dimensions, not a survey of the stadium pitch
+  pitch_width_m: 68.0
+  keyframes_file: configs/calibration_keyframes.json
+  orb_features: 3000
+  min_inliers: 60
+  max_chain_s: 600.0  # chains break on cuts or failed matches; drift is bounded by extra keyframes
+  pitch_margin_m: 3.0    # projected points further outside the pitch than this are rejected
+  max_keyframe_dt_s: 12.0  # frames further in time from their keyframe are rejected: measured drift reaches
+                          # 5-10 m at 11-22 s during the long pan of segment 13 (docs/evaluation.md)
+
+trajectories:
+  max_speed_mps: 11.0    # faster implied speeds between observations are flagged as jumps
+  min_track_points: 5
+
+analytics:
+  xt_model_path: models/xt_model.json
+  top_sequences: 5
+  atomic_vaep:
+    # Legacy SPADL stores (StatsBomb open data converted with socceraction) from the sibling
+    # VAEP_Football project. Trained on club leagues, evaluated on the held-out World Cup 2018.
+    spadl_dir: ../VAEP_Football/spadl
+    train_stores: ["spadl-Premier League.h5", "spadl-La Liga.h5"]
+    test_store: spadl-WorldCup-2018.h5
+    max_games_per_store: null   # null = all games; set e.g. 50 for a quick run
+    seed: 0

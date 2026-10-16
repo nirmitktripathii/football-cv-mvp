@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "football-cv"
+version = "0.1.0"
+description = "Broadcast football video to tracked 2D pitch trajectories, spatial metrics, xT and Atomic-VAEP"
+requires-python = ">=3.11,<3.13"
+# torch/torchvision are expected from a CUDA build already present (see README); they are
+# deliberately not listed so a resolver cannot replace them with a CPU-only wheel.
+dependencies = [
+    "ultralytics>=8.3",
+    "supervision>=0.25,<0.31",
+    "opencv-python==4.11.0.86",
+    "numpy==1.26.4",
+    "pandas==2.3.3",
+    "pyarrow<20",
+    "scipy<1.18",
+    "scikit-learn",
+    "matplotlib",
+    "mplsoccer",
+    "pyyaml",
+    "socceraction==1.5.3",
+    "pandera==0.17.2",
+    "multimethod==1.9.1",
+    "typeguard>=4",
+    "xgboost",
+    "tables",
+    "streamlit",
+    "plotly",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

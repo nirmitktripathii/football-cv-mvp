@@ -1,0 +1,43 @@
+{
+  "clip": {
+    "id": "isl_bfc_scd_gw1_2026",
+    "video_path": "data/raw/isl_bfc_scd_2026-10-10_gw1_section.mp4",
+    "source_url": "https://www.youtube.com/watch?v=gDI508P5F3g",
+    "source_title": "FULL REPLAY (English): Bengaluru FC vs Sporting Club Delhi (3-2) | MG ISL 2026-27 | GW 1",
+    "source_channel": "MG Indian Super League",
+    "source_upload_date": "2026-10-10",
+    "source_offset_s": 3120,
+    "kickoff_replay_s": 1865,
+    "home_team": "Bengaluru FC",
+    "away_team": "Sporting Club Delhi",
+    "home_kit": "blue",
+    "away_kit": "white"
+  },
+  "video": {
+    "path": "E:\\football-cv-mvp\\data\\raw\\isl_bfc_scd_2026-10-10_gw1_section.mp4",
+    "size_bytes": 88619164,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "fps": 30.0,
+    "r_frame_rate": 30.0,
+    "nb_frames": 10800,
+    "duration_s": 360.0,
+    "variable_frame_rate": false,
+    "probe": "ffprobe"
+  },
+  "sampling": {
+    "fps": 5.0,
+    "start_s": 0.0,
+    "end_s": null,
+    "preview_every_s": 30.0
+  },
+  "clip_window_in_replay_s": [
+    3120,
+    3480.0
+  ],
+  "clip_window_match_clock": [
+    "20:55",
+    "26:55"
+  ]
+}

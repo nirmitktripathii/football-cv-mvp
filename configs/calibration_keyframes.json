@@ -1,0 +1,122 @@
+{
+  "_about": "Manual pitch-landmark clicks, one or more keyframes per usable camera segment. Identified by eye on artifacts/<clip>/calibration/annotate_<id>.jpg (scripts/annotate_keyframe.py); candidates there are Hough line intersections, the landmark names are a human judgement. circle_left/right are read as the ellipse's extreme point, an approximation valid only where the halfway line is near vertical. Segment 14 (t 335.6-338.4 s, a different camera angle) has no keyframe: its landmarks could not be identified reliably, so it stays uncalibrated. A keyframe tried at sample 1250 (4 points + 1 line point, exactly determined) failed validation and was removed: an exactly determined fit cannot reveal a mislabelled point. \"on_line\" points lie on the named straight marking only (here the near touchline, read from Hough segments), constraining one pitch coordinate.",
+  "keyframes": [
+    {"sample_id": 20, "note": "segment 0, left penalty area at top-left",
+     "points": [
+       {"landmark": "pen_l_corner_top", "image": [601.4, 136.6]},
+       {"landmark": "pen_l_goalline_top", "image": [235.6, 110.3]},
+       {"landmark": "ga_l_goalline_top", "image": [88.5, 138.9]},
+       {"landmark": "ga_l_corner_top", "image": [210.0, 152.4]},
+       {"landmark": "pen_l_arc_bottom", "image": [243.1, 252.0]},
+       {"on_line": "touchline_near", "image": [30.0, 572.0]},
+       {"on_line": "touchline_near", "image": [450.0, 631.0]},
+       {"on_line": "touchline_near", "image": [870.0, 690.0]}
+     ]},
+    {"sample_id": 40, "note": "segment 0, same view panned right",
+     "points": [
+       {"landmark": "pen_l_corner_top", "image": [510.0, 136.0]},
+       {"landmark": "pen_l_goalline_top", "image": [138.0, 109.0]},
+       {"landmark": "ga_l_corner_top", "image": [113.0, 152.0]},
+       {"landmark": "pen_l_arc_bottom", "image": [155.0, 251.0]},
+       {"landmark": "pen_l_arc_top", "image": [377.0, 180.0]},
+       {"on_line": "touchline_near", "image": [20.0, 595.0]},
+       {"on_line": "touchline_near", "image": [360.0, 632.0]},
+       {"on_line": "touchline_near", "image": [700.0, 673.0]}
+     ]},
+    {"sample_id": 140, "note": "segment 3, halfway line and centre circle at right, left box corner",
+     "points": [
+       {"landmark": "halfway_top", "image": [1107.8, 140.8]},
+       {"landmark": "circle_top", "image": [1105.0, 252.6]},
+       {"landmark": "circle_bottom", "image": [1101.0, 383.9]},
+       {"landmark": "circle_left", "image": [769.0, 303.0]},
+       {"landmark": "pen_l_corner_top", "image": [190.8, 171.9]}
+     ]},
+    {"sample_id": 290, "note": "segment 7, left goal and full penalty area",
+     "points": [
+       {"landmark": "corner_tl", "image": [905.0, 176.0]},
+       {"landmark": "pen_l_goalline_top", "image": [720.0, 213.0]},
+       {"landmark": "pen_l_corner_top", "image": [1196.0, 252.0]},
+       {"landmark": "pen_l_corner_bottom", "image": [392.0, 485.0]},
+       {"landmark": "pen_l_arc_top", "image": [948.0, 323.0]},
+       {"landmark": "pen_l_arc_bottom", "image": [720.0, 389.0]},
+       {"landmark": "ga_l_goalline_top", "image": [538.0, 248.0]},
+       {"landmark": "ga_l_corner_top", "image": [688.0, 264.0]},
+       {"landmark": "ga_l_corner_bottom", "image": [302.0, 348.0]},
+       {"landmark": "ga_l_goalline_bottom", "image": [126.0, 326.0]}
+     ]},
+    {"sample_id": 680, "note": "segment 8, kick-off after the 1-0, full centre circle",
+     "points": [
+       {"landmark": "halfway_top", "image": [447.0, 280.0]},
+       {"landmark": "circle_top", "image": [450.0, 374.0]},
+       {"landmark": "circle_bottom", "image": [455.5, 493.3]},
+       {"landmark": "circle_left", "image": [126.0, 437.0]},
+       {"landmark": "circle_right", "image": [764.0, 427.0]}
+     ]},
+    {"sample_id": 795, "note": "segment 9, right goal and penalty area from a high angle",
+     "points": [
+       {"landmark": "corner_tr", "image": [360.0, 240.0]},
+       {"landmark": "pen_r_goalline_top", "image": [550.2, 276.1]},
+       {"landmark": "pen_r_corner_top", "image": [74.3, 318.2]},
+       {"landmark": "pen_r_corner_bottom", "image": [904.1, 551.4]},
+       {"landmark": "pen_r_arc_top", "image": [268.0, 373.0]},
+       {"landmark": "pen_r_arc_bottom", "image": [550.0, 452.0]},
+       {"landmark": "ga_r_goalline_top", "image": [714.0, 306.0]},
+       {"landmark": "ga_r_corner_top", "image": [585.3, 327.4]},
+       {"landmark": "ga_r_corner_bottom", "image": [990.2, 413.2]},
+       {"landmark": "ga_r_goalline_bottom", "image": [1165.9, 391.9]}
+     ]},
+    {"sample_id": 920, "note": "segment 11, right penalty area",
+     "points": [
+       {"landmark": "pen_r_corner_top", "image": [344.2, 232.6]},
+       {"landmark": "pen_r_goalline_top", "image": [700.7, 202.0]},
+       {"landmark": "pen_r_corner_bottom", "image": [971.5, 419.7]},
+       {"landmark": "pen_r_arc_top", "image": [478.0, 272.0]},
+       {"landmark": "pen_r_arc_bottom", "image": [712.4, 342.5]},
+       {"landmark": "ga_r_goalline_top", "image": [852.8, 231.5]},
+       {"landmark": "ga_r_corner_top", "image": [727.0, 241.2]},
+       {"landmark": "ga_r_corner_bottom", "image": [1047.2, 311.9]},
+       {"landmark": "ga_r_goalline_bottom", "image": [1189.7, 294.4]}
+     ]},
+    {"sample_id": 1065, "note": "segment 12, right goal seen from the near side",
+     "points": [
+       {"landmark": "pen_r_goalline_bottom", "image": [989.0, 391.0]},
+       {"landmark": "pen_r_corner_bottom", "image": [500.8, 485.3]},
+       {"landmark": "pen_r_arc_bottom", "image": [209.6, 415.2]},
+       {"landmark": "ga_r_goalline_bottom", "image": [706.8, 346.3]},
+       {"landmark": "ga_r_corner_bottom", "image": [572.1, 370.9]},
+       {"landmark": "ga_r_corner_top", "image": [228.2, 305.2]},
+       {"landmark": "ga_r_goalline_top", "image": [355.8, 290.8]}
+     ]},
+    {"sample_id": 1160, "note": "segment 13, full right penalty area from the near-left; replaces sample 1200, whose landmarks were all in the upper right and extrapolated 29 m wrong at the near touchline",
+     "points": [
+       {"landmark": "pen_r_corner_top", "image": [325.2, 286.2]},
+       {"landmark": "pen_r_arc_bottom", "image": [701.4, 397.6]},
+       {"landmark": "pen_r_corner_bottom", "image": [973.5, 477.9]},
+       {"landmark": "ga_r_corner_top", "image": [718.1, 294.6]},
+       {"landmark": "ga_r_goalline_top", "image": [852.0, 283.0]},
+       {"landmark": "ga_r_corner_bottom", "image": [1049.7, 367.8]},
+       {"landmark": "ga_r_goalline_bottom", "image": [1194.9, 350.6]},
+       {"on_line": "touchline_near", "image": [1000.0, 708.2]},
+       {"on_line": "touchline_near", "image": [1250.0, 662.9]}
+     ]},
+    {"sample_id": 1310, "note": "segment 13 mid-pan, full centre circle and halfway line to the near touchline; far end skipped (touchline vs board edge ambiguous)",
+     "points": [
+       {"landmark": "halfway_bottom", "image": [620.6, 703.3]},
+       {"landmark": "circle_top", "image": [607.6, 248.7]},
+       {"landmark": "circle_bottom", "image": [610.5, 358.2]},
+       {"landmark": "circle_left", "image": [323.0, 304.0]},
+       {"landmark": "circle_right", "image": [894.0, 300.5]},
+       {"on_line": "touchline_near", "image": [100.0, 706.9]},
+       {"on_line": "touchline_near", "image": [1200.0, 699.2]}
+     ]},
+    {"sample_id": 1450, "note": "segment 13, halfway line and centre circle at left, right box corner",
+     "points": [
+       {"landmark": "halfway_top", "image": [196.0, 213.0]},
+       {"landmark": "circle_top", "image": [202.9, 311.2]},
+       {"landmark": "circle_bottom", "image": [210.9, 432.9]},
+       {"landmark": "circle_right", "image": [518.0, 357.0]},
+       {"landmark": "pen_r_corner_top", "image": [1057.0, 233.0]},
+       {"landmark": "pen_r_arc_top", "image": [1195.0, 275.0]}
+     ]}
+  ]
+}

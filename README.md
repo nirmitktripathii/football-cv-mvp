@@ -145,6 +145,21 @@ a mini-map: [docs/media/broadcast_overlay_SEQ1.mp4](docs/media/broadcast_overlay
 through to play). It is a short excerpt of the replay shown for research illustration only; see
 [Licences and attribution](#licences-and-attribution).
 
+**Pitch mapping on the broadcast picture** (100 s of play, match clock 23:29 to 25:09, plus the keyframe holds, 1 min 46 s in all):
+[docs/media/calibration_demo.mp4](docs/media/calibration_demo.mp4) (9.7 MB; click through to play). Every
+frame with a calibrated view shows player boxes with track ids and team colours, the pitch boundary (thick
+yellow), the inner markings (red), the projected landmark fix points (yellow dots: corners, penalty box,
+six-yard box, D, penalty spot, circle) and the mini-map. Four manual keyframes are held for 1.6 s and show
+the hand-clicked landmarks (green +) against where the model projects them (red o). The status bar gives
+the calibration state and the measured error for that state.
+
+How to read it honestly: the mapping is near exact only at those keyframes (0.18 m). On the other
+calibrated frames it is propagated from the nearest keyframe and is **about 4 m off on average (worst
+measured 8.1 m)**, so expect the red lines and dots to sit visibly away from the painted lines, most so far
+from a keyframe ([evaluation §10](docs/evaluation.md)). Of the 501 sampled frames, 376 (75 %) have a
+calibrated view; close-ups, replays and cuts get no overlay and say so. The clip is 5 frames per second, so
+motion is choppy. Re-render with `python scripts/render_calibration_demo.py --start 154 --end 254`.
+
 **What works**
 
 - Players are detected in 98.8 % of sampled frames (median confidence 0.78) and tracked within
@@ -207,7 +222,7 @@ app/               Streamlit dashboard (read-only over artifacts)
 configs/           pipeline config, manual calibration keyframes
 docs/              architecture, audit, implementation plan, evaluation and protocol, schemas, research notes, roadmap
 models/            xT grid (committed), YOLO weights (git-ignored)
-scripts/           keyframe annotation helper, validation and SkillCorner evaluation scripts, figure generator
+scripts/           keyframe annotation helper, validation and SkillCorner evaluation scripts, figure and demo-clip generators
 src/football_cv/   pipeline package
 tests/             geometry, analytics, reconstruction, identity, regions and SkillCorner scoring unit tests (83)
 data/, artifacts/  local only (git-ignored), except data/manifests
@@ -216,9 +231,9 @@ data/, artifacts/  local only (git-ignored), except data/manifests
 ## Licences and attribution
 
 - Source video: © the Indian Super League and its broadcaster. The full match is not redistributed. The
-  repository includes one 14-second annotated excerpt ([docs/media/broadcast_overlay_SEQ1.mp4](docs/media/broadcast_overlay_SEQ1.mp4))
-  solely to illustrate this non-commercial research prototype. If the rights holder objects, open an issue
-  and it will be removed.
+  repository includes two short annotated excerpts, 14 s ([docs/media/broadcast_overlay_SEQ1.mp4](docs/media/broadcast_overlay_SEQ1.mp4))
+  and 100 s ([docs/media/calibration_demo.mp4](docs/media/calibration_demo.mp4)), solely to illustrate this
+  non-commercial research prototype. If the rights holder objects, open an issue and they will be removed.
 - Event data behind xT and Atomic-VAEP: [StatsBomb open data](https://github.com/statsbomb/open-data),
   used under its user agreement (attribution required).
 - Detector: Ultralytics YOLO11, AGPL-3.0. socceraction: MIT.

@@ -29,14 +29,14 @@ INSET_W, INSET_H, INSET_PAD = 105 * PX_PER_M, 68 * PX_PER_M, 10
 
 
 class FfmpegWriter:
-    def __init__(self, path: Path, width: int, height: int, fps: float):
+    def __init__(self, path: Path, width: int, height: int, fps: float, crf: int = 23):
         exe = shutil.which("ffmpeg")
         if exe is None:
             raise RuntimeError("ffmpeg not found on PATH")
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.proc = subprocess.Popen(
             [exe, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{width}x{height}",
-             "-r", str(fps), "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "23", str(path)],
+             "-r", str(fps), "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", str(crf), str(path)],
             stdin=subprocess.PIPE,
         )
 
@@ -73,8 +73,8 @@ def _draw_inset(frame: np.ndarray, base: np.ndarray, rows: pd.DataFrame) -> None
     frame[y0 : y0 + INSET_H, x0 : x0 + INSET_W] = cv2.addWeighted(region, 0.15, inset, 0.85, 0)
 
 
-def annotate_frame(img: np.ndarray, rows: pd.DataFrame, header: str, status: str, H=None, lines: bool = False) -> np.ndarray:
-    out = draw_pitch_overlay(img, H, colour=(80, 80, 255), thickness=1) if (lines and H is not None) else img.copy()
+def draw_boxes(out: np.ndarray, rows: pd.DataFrame) -> None:
+    """Player boxes with track ids and the ball marker, drawn in place."""
     for r in rows.itertuples():
         colour = BGR["ball"] if r.track_id < 0 else BGR.get(r.team_id, BGR["unknown"])
         p1, p2 = (int(r.bbox_x1), int(r.bbox_y1)), (int(r.bbox_x2), int(r.bbox_y2))
@@ -84,6 +84,11 @@ def annotate_frame(img: np.ndarray, rows: pd.DataFrame, header: str, status: str
             continue
         cv2.rectangle(out, p1, p2, colour, 2)
         cv2.putText(out, str(r.track_id), (p1[0], p1[1] - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.42, colour, 1, cv2.LINE_AA)
+
+
+def annotate_frame(img: np.ndarray, rows: pd.DataFrame, header: str, status: str, H=None, lines: bool = False) -> np.ndarray:
+    out = draw_pitch_overlay(img, H, colour=(80, 80, 255), thickness=1) if (lines and H is not None) else img.copy()
+    draw_boxes(out, rows)
     h, w = out.shape[:2]
     cv2.rectangle(out, (0, h - 26), (w, h), (0, 0, 0), -1)
     cv2.putText(out, f"{header}   calibration: {status}", (8, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5,

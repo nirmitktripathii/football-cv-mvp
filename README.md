@@ -129,6 +129,17 @@ the legend above):
 
 ![Top-down view with observation states](docs/images/topdown_states.png)
 
+**In action** (SEQ1, 47–61 s, the 1-0 goal; 5 frames per second, pitch graphics only, no broadcast pixels):
+
+![Top-down animation with observed players, estimates and inferred regions](docs/media/topdown_regions_SEQ1.gif)
+
+Solid dots are observed players. Dashed translucent circles are interpolated or predicted positions with
+their uncertainty. Hatched patches are inferred regions for players not in view (**not positions**). A
+red border means the frame has no calibrated view (a camera cut or close-up), so nothing is drawn. The
+regions are large and overlap because the pitch mapping is about 4 m off and the gaps are long (median
+858 m² on this clip); this sequence is also marked low confidence (ball seen in 45 % of frames, up to
+9 s from a manual keyframe). Re-render with `python scripts/render_demo.py --seq SEQ1`.
+
 **What works**
 
 - Players are detected in 98.8 % of sampled frames (median confidence 0.78) and tracked within

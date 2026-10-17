@@ -198,6 +198,44 @@ def stage_calibrate(cfg: dict) -> None:
     log.info("Calibration: %s", {k: v for k, v in report.items() if k != "keyframes"})
 
 
+def stage_reconstruct(cfg: dict) -> None:
+    from football_cv.reconstruction import reconstruct
+
+    out, art = C.run_dir(cfg), C.artifacts_dir(cfg) / "reconstruction"
+    art.mkdir(parents=True, exist_ok=True)
+    traj = _read(cfg, "trajectories.parquet", "calibrate")
+    timeline = _read(cfg, "shots.parquet", "shots")[["sample_id", "timestamp_s", "shot_id"]]
+    calib = _read(cfg, "frame_calibration.parquet", "calibrate")
+    ann_file = (cfg.get("reconstruction") or {}).get("annotations_file")
+    notes = reconstruct.load_annotations(C.resolve(ann_file) if ann_file else None)
+    states, gaps, warnings = reconstruct.reconstruct(traj, timeline, calib, cfg, notes)
+    states.to_parquet(out / "player_states.parquet", index=False)
+    gaps.to_parquet(out / "gaps.parquet", index=False)
+    summary = {
+        "identities": int(states["identity_id"].nunique()), "rows": len(states),
+        "rows_by_source": {k or "none": int(v) for k, v in states["position_source"].value_counts().items()},
+        "rows_by_state": {str(k): int(v) for k, v in states["state"].value_counts().items()},
+        "gaps": len(gaps), "annotations": len(notes), "annotation_warnings": warnings,
+        "settings": reconstruct.settings(cfg),
+    }
+    C.write_json(art / "reconstruction_summary.json", summary)
+    log.info("Reconstruction: %s", {k: v for k, v in summary.items() if k != "settings"})
+
+
+def stage_reconstruction_eval(cfg: dict) -> None:
+    from football_cv.reconstruction import evaluate
+
+    traj = _read(cfg, "trajectories.parquet", "calibrate")
+    good = traj[(traj["track_id"] >= 0) & ~traj["jump"] & traj["x_s"].notna() & ~traj["short_track"]]
+    gaps = (cfg.get("reconstruction") or {}).get("eval_gap_lengths_s", [0.6, 1.0, 2.0, 4.0, 8.0])
+    res = evaluate.masking_eval(good, tuple(gaps), 1.0 / float(cfg["sampling"]["fps"]))
+    table = evaluate.summarise(res)
+    art = C.artifacts_dir(cfg) / "reconstruction"
+    art.mkdir(parents=True, exist_ok=True)
+    table.round(3).to_csv(art / "masking_eval.csv", index=False)
+    log.info("Masking eval (%d scored samples):\n%s", len(res), table.round(2).to_string())
+
+
 def _home_attacks(cfg: dict) -> str:
     side = cfg["clip"].get("home_attacks")
     if side not in ("left", "right"):
@@ -249,7 +287,7 @@ def stage_analytics(cfg: dict) -> None:
 
 
 def stage_visualize(cfg: dict) -> None:
-    from football_cv.visualization import broadcast, pitch_animation
+    from football_cv.visualization import broadcast, pitch_animation, pitch_states
 
     out, art = C.run_dir(cfg), C.artifacts_dir(cfg) / "videos"
     v = cfg.get("visualize", {})
@@ -269,7 +307,16 @@ def stage_visualize(cfg: dict) -> None:
     seq_path = out / "sequences.parquet"
     if seq_path.exists():
         windows += [(r.seq_id, r.start_s, r.end_s) for r in pd.read_parquet(seq_path).itertuples()]
+    states_path = out / "player_states.parquet"
+    states = pd.read_parquet(states_path) if states_path.exists() else None
+    shots_tbl = _read(cfg, "shots.parquet", "shots") if states is not None else None
     for name, start, end in windows:
+        if states is not None and (name != "full" or v.get("full_states", False)):
+            pitch_states.render_state_animation(
+                states, traj, frames, shots_tbl, calib, art / f"pitch_states_{name}.gif" if name != "full"
+                else art / "pitch_states_full.mp4", start, end, names, fps,
+                title=f"{names['home']} v {names['away']}" + ("" if name == "full" else f"  {name}"),
+            )
         if name != "full" or v.get("full_broadcast", True):
             broadcast.render_broadcast_video(traj_all, frames, out, calib, art / f"broadcast_{name}.mp4", start, end, fps)
         suffix = ".mp4" if name == "full" else ".gif"
@@ -297,11 +344,12 @@ STAGES = {
     "motion": stage_motion,
     "track": stage_track,
     "calibrate": stage_calibrate,
+    "reconstruct": stage_reconstruct,
     "analytics": stage_analytics,
     "visualize": stage_visualize,
 }
 # Not clip-specific and slow (~10 min); run explicitly, never as part of "all".
-EXTRA_STAGES = {"atomic_vaep": stage_atomic_vaep}
+EXTRA_STAGES = {"atomic_vaep": stage_atomic_vaep, "reconstruction_eval": stage_reconstruction_eval}
 
 
 def main(argv: list[str] | None = None) -> None:

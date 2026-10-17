@@ -133,7 +133,7 @@ class Keyframe:
 
 def load_keyframes(path: Path) -> list[Keyframe]:
     if not Path(path).exists():
-        raise FileNotFoundError(f"{path} missing; annotate calibration keyframes first (see docs/architecture.md)")
+        raise FileNotFoundError(f"{path} missing; annotate calibration keyframes first (see docs/current_architecture.md)")
     marks, lines = landmarks(), pitch_lines()
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     out = []

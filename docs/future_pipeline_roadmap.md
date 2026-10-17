@@ -21,6 +21,27 @@ Ordered by what unblocks the most. Each step names the measurement that would sh
 
 - Appearance re-identification across occlusions and cuts; jersey-number OCR; team-sheet linking.
 - **Measure:** ID switches and IDF1 against a labelled tracking sequence (e.g. SoccerNet tracking).
+- **Tracklet linker (designed, not built).** Candidate pairs are tracklets of the same team with a
+  gap of at most a few seconds inside one shot, whose reconstructed estimate (`reconstruct()` already
+  gives mean and sigma) lies within 2-3 sigma of the next tracklet's first position, plus an
+  appearance distance on torso crops. A pair is linked only if it is the unique mutual best match
+  with a margin; any pair with a second plausible partner stays unlinked and is reported as
+  ambiguous. Output is an `identity_id` column that `reconstruct()` already accepts.
+- **Measure before shipping:** on labelled tracking data, the rate of wrong merges (must stay near
+  zero, since a wrong merge is invisible) and recall of true links. On this clip only the
+  self-supervised check in `docs/evaluation_protocol.md` §5 is possible.
+- Across a camera cut a person cannot be linked by position at all; only appearance or a team sheet
+  can do it.
+
+## 3b. Reconstruction (shipped; next steps)
+
+- Annotate a clip that contains an injury or a substitution and run the annotation-only states on
+  real data; none exists in the current clip.
+- Replace the constant-velocity prior with a context-conditioned model (ball, teammates, role) and
+  report it against the masking baselines in `docs/evaluation.md` §9.
+- Evaluate against surveyed tracking data (e.g. a public tracking dataset replayed through the same
+  masking harness) so errors are against real positions, not the system's own projection.
+- Export `player_states` as a kloppy tracking dataset (`docs/data_schemas.md`, Interoperability).
 
 ## 4. Events → SPADL → Atomic-VAEP on video
 

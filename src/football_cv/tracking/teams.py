@@ -38,6 +38,8 @@ KIT_LAB = {
 }
 MIN_TORSO_PIXELS = 12
 MIN_SAMPLES_PER_TRACK = 3
+MIN_TEAM_AGREEMENT = 0.8     # share of a track's crops that must agree with its label to call it confident
+MIN_CONFIDENT_SAMPLES = 5
 
 
 def torso_colour(image: np.ndarray, box) -> np.ndarray | None:
@@ -67,6 +69,26 @@ def sample_colours(tracks: pd.DataFrame, frames: pd.DataFrame, frames_root, min_
             if c is not None:
                 out.append({"track_id": r.track_id, "L": c[0], "a": c[1], "b": c[2]})
     return pd.DataFrame(out, columns=["track_id", "L", "a", "b"])
+
+
+def add_team_confidence(table: pd.DataFrame, colours: pd.DataFrame, centres: np.ndarray, names: dict) -> pd.DataFrame:
+    """Add ``agreement`` (share of a track's crops whose nearest kit cluster matches its label) and ``team_status``.
+
+    ``confident`` needs agreement >= ``MIN_TEAM_AGREEMENT`` and >= ``MIN_CONFIDENT_SAMPLES`` crops; other
+    home/away labels are ``uncertain``. Labels themselves are not changed.
+    """
+    d = np.linalg.norm(colours[["L", "a", "b"]].to_numpy()[:, None, :] - centres[None], axis=2)
+    crop_team = pd.Series([names[k] for k in d.argmin(1)], index=colours.index)
+    label = colours["track_id"].map(table.set_index("track_id")["team_id"])
+    agree = (crop_team == label).groupby(colours["track_id"]).mean()
+    out = table.copy()
+    outfield = out["team_id"].isin(["home", "away"])
+    out["agreement"] = out["track_id"].map(agree).where(outfield).round(3)
+    sure = (out["agreement"] >= MIN_TEAM_AGREEMENT) & (out["n_colour_samples"] >= MIN_CONFIDENT_SAMPLES)
+    out["team_status"] = np.select(
+        [out["team_id"] == "unknown", out["team_id"] == "other", sure], ["unknown", "other", "confident"], "uncertain"
+    )
+    return out
 
 
 def assign_teams(
@@ -100,6 +122,7 @@ def assign_teams(
             "n_colour_samples": per_track["n"].to_numpy(),
         }
     )
+    table = add_team_confidence(table, colours, km.cluster_centers_, names)
     diag = {
         "centroids_lab": {names[k]: km.cluster_centers_[k].round(1).tolist() for k in (0, 1)},
         "kit_hint": {"home": home_kit, "away": away_kit},

@@ -78,6 +78,20 @@ trajectories:
   max_speed_mps: 11.0    # faster implied speeds between observations are flagged as jumps
   min_track_points: 5
 
+reconstruction:
+  # Gap filling for person tracks (docs/implementation_plan.md). Positions are never invented across
+  # camera cuts or uncalibrated frames; estimates less certain than max_sigma_m are withheld.
+  interpolate: rts          # between two observations: rts | linear
+  predict: cv               # after the last observation: cv | kalman | hold
+  max_gap_s: 8.0
+  predict_horizon_s: 2.0
+  max_occlusion_s: 3.0
+  max_sigma_m: 5.0
+  view_margin_px: 20.0
+  image_size: [1280, 720]
+  annotations_file: null    # manual events (injury treatment, return, confirmed substitution); none for this clip
+  eval_gap_lengths_s: [0.6, 1.0, 2.0, 4.0, 8.0]
+
 analytics:
   xt_model_path: models/xt_model.json
   top_sequences: 5

@@ -72,5 +72,6 @@ Decisions made while building the MVP, what was tried, and what did not work. Re
 ## Not done, by decision
 
 - No PPDA, pressing or pass networks: they need events.
-- No interpolation to fill gaps in animations.
+- v0.1: no interpolation to fill gaps in animations. Superseded: `reconstruction/` now fills short
+  gaps with provenance and uncertainty, shown distinctly from observations (`docs/evaluation.md` §9).
 - No claims about individual players.

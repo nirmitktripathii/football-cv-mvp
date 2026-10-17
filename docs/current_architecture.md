@@ -11,9 +11,11 @@ video (data/raw) ──ingest───▶ sampled frames + manifest
                   ──motion───▶ camera motion G_t per frame    (ORB + RANSAC, motion segments)
                   ──track────▶ tracks + team ids              (ByteTrack, torso-colour k-means)
                   ──calibrate▶ frame_calibration, trajectories.parquet (pitch metres)
+                  ──reconstruct▶ player_states.parquet, gaps.parquet  (provenance, state, uncertainty)
                   ──analytics▶ ball xT, team shape, proximity, candidate sequences
-                  ──visualize▶ annotated broadcast, top-down animation, per-sequence clips
+                  ──visualize▶ annotated broadcast, top-down animation, state animation, per-sequence clips
 atomic_vaep (run separately) ─▶ model + metrics on public StatsBomb SPADL data
+reconstruction_eval (separate) ▶ masking evaluation of the gap-filling methods
 app/streamlit_app.py ─────────▶ read-only dashboard over all of the above
 ```
 
@@ -31,11 +33,16 @@ app/streamlit_app.py ─────────▶ read-only dashboard over all
 | `calibration/homography.py` | pitch model (105×68 m), normalised DLT with point-on-line equations, validation, line-chamfer refinement for keyframes |
 | `calibration/projection.py` | keyframe fitting, propagation `H_t = H_k · G_k⁻¹ · G_t`, rejection rules, drift checks, bottom-centre projection |
 | `trajectories/clean.py` | implied-speed jump flags, runs split at gaps, rolling median over observed samples only, speeds |
+| `reconstruction/states.py` | `PlayerState` and `PositionSource` enums; the annotation-only state set |
+| `reconstruction/motion_models.py` | hold, linear, constant-velocity, Kalman and Kalman + RTS gap models with per-sample uncertainty |
+| `reconstruction/reconstruct.py` | evidence-gated gap filling per identity and shot; view-geometry state; manual annotations; `player_states` and `gaps` |
+| `reconstruction/evaluate.py` | masking harness: hide windows of observed tracks, score every method, bootstrap CIs, sigma coverage |
 | `analytics/xt.py` | socceraction-convention xT grid lookups, attacking-frame mirroring, ball-zone threat |
 | `analytics/spatial.py` | team shape (width, depth, hull, nearest-neighbour), nearest player to ball |
 | `analytics/atomic_vaep.py` | Atomic-VAEP training/evaluation on SPADL stores; clip status INCOMPLETE |
 | `sequences/candidates.py` | final-third ball windows → ranked candidates with confidence notes |
-| `visualization/broadcast.py`, `pitch_animation.py` | annotated video; mplsoccer top-down animation and snapshots |
+| `visualization/broadcast.py`, `pitch_animation.py` | annotated video; mplsoccer top-down animation and snapshots (observed positions only, unchanged from v0.1) |
+| `visualization/pitch_states.py` | state-aware top-down renderer: solid / translucent / dotted markers, uncertainty rings, annotation diamonds, off-pitch band, camera-cut and uncalibrated warnings |
 | `pipeline.py` | CLI and stage wiring |
 
 ## Pitch frame and conventions
@@ -62,10 +69,28 @@ app/streamlit_app.py ─────────▶ read-only dashboard over all
 4. **Projection.** Every box (player or ball) by its bottom-centre. For an airborne ball this is
    wrong by the ball's height projected onto the ground.
 
+## Reconstruction design
+
+Per identity and per shot (never across a cut), on the per-frame calibration of the clip:
+
+1. Observed samples are published as `OBSERVED` / `VISIBLE_ON_PITCH`, unchanged.
+2. A missing sample on an uncalibrated frame gets no coordinates (`UNKNOWN_MISSING`).
+3. On a calibrated frame, a gap with observations on both sides is filled by Kalman + RTS
+   (`INTERPOLATED`); after the last observation a constant-velocity prediction runs for at most
+   2 s (`PREDICTED`). The position is withheld when the gap exceeds 8 s or the model's 1-sigma
+   exceeds 5 m; the estimate and its uncertainty are still stored.
+4. The state comes from geometry: the 2-sigma disc of the estimate is projected into the frame with
+   the inverse homography. Wholly inside and gap <= 3 s: `OCCLUDED`. Wholly outside:
+   `OUTSIDE_CAMERA_VIEW`. Straddling the border or a long in-view gap: `UNKNOWN_MISSING`.
+5. `OFF_PITCH_INJURY_TREATMENT`, `RETURNING_TO_PLAY`, `SUBSTITUTED_CONFIRMED` and
+   `MANUALLY_ANNOTATED` positions come only from `reconstruction.annotations_file`; a gap alone never
+   produces them. Schemas: `docs/data_schemas.md`.
+
 ## What is deliberately absent
 
-- No interpolation across gaps: animations show only observed positions.
-- No event detection, possession model or player identity.
+- No event detection, possession model or re-identification (`identity_id` equals `track_id`).
+- Interpolated and predicted positions are labelled as such everywhere and are never counted as
+  observed; physical metrics (distance, speed) are still computed from observed samples only.
 - No PPDA (needs defensive actions and passes).
 - No Atomic-VAEP on the clip (no valid action stream; `docs/evaluation.md` §7).
 

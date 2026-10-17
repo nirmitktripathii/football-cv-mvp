@@ -140,5 +140,62 @@ have no usable ball. VAEP numbers from such a stream would be fabricated.
 
 ## 8. Tests
 
-`pytest`: 17 tests, all passing (geometry and homography 8, analytics 9). They test the maths on
-synthetic inputs; they do not validate the pipeline on video.
+`pytest`: 42 tests, all passing (geometry and homography 8, analytics 9, reconstruction 25). They
+test the maths on synthetic inputs; they do not validate the pipeline on video. The reconstruction
+tests cover the motion models, view geometry, the missing-observation cases (interior gap, trailing
+prediction, gap too long, uncalibrated frame, camera cut, rejected jump), uncertainty growth,
+annotation rules (annotation-only states never come from a gap; observations are never
+overwritten), team confidence, the masking harness (including a leakage check) and a renderer smoke
+test.
+
+## 9. Missing-position reconstruction
+
+Protocol: `docs/evaluation_protocol.md` §4. Truth is the system's own smoothed calibrated
+projection, **not** real pitch positions, so these are relative accuracies of the motion models.
+75,140 scored samples; MAE in metres with a 95 % bootstrap interval over windows; `rts cov` is the
+share of samples inside the method's own 95 % ellipse.
+
+| gap | windows | linear | rts | cv | kalman | hold | rts cov |
+|---|---|---|---|---|---|---|---|
+| 0.6 s | 666 | **0.32** [0.30, 0.33] | 0.44 [0.40, 0.45] | 0.68 [0.63, 0.72] | 0.84 [0.79, 0.88] | 1.07 [1.01, 1.10] | 0.96 |
+| 1 s | 549 | **0.41** [0.38, 0.43] | 0.50 [0.46, 0.52] | 0.96 [0.88, 1.00] | 1.08 [1.00, 1.14] | 1.39 [1.31, 1.46] | 0.94 |
+| 2 s | 343 | 0.70 [0.64, 0.72] | 0.71 [0.64, 0.73] | 1.54 [1.39, 1.60] | 1.58 [1.44, 1.68] | 2.08 [1.93, 2.18] | 0.95 |
+| 4 s | 177 | 1.24 [1.12, 1.34] | **1.04** [0.94, 1.13] | 3.05 [2.71, 3.36] | 2.92 [2.64, 3.16] | 3.33 [2.92, 3.57] | 0.96 |
+| 8 s | 58 | 3.42 [3.05, 3.81] | **2.37** [2.08, 2.61] | 6.46 [5.64, 7.37] | 5.59 [4.94, 6.33] | 6.44 [5.56, 7.03] | 0.97 |
+
+Reading it:
+
+- Between two observations `linear` is best up to 1 s and tied with `rts` at 2 s; `rts` wins from
+  4 s, and its reported uncertainty is calibrated (coverage 0.94–0.97 against a nominal 0.95). The
+  other methods' sigmas are over-conservative (coverage ≈ 1.0, mean sigma several times the error).
+  The default is `rts` because only it also carries a trustworthy sigma, which the publish/withhold
+  rule needs.
+- History-only, `cv` beats `kalman` clearly up to 1 s and ties it at 2 s (overlapping intervals).
+  Both are only modestly better than `hold` beyond 2 s, with errors near 3 m at 4 s, which is why
+  prediction stops at 2 s.
+- The `cv` default was chosen on this same data (see the limitation in
+  `docs/audit_and_findings.md`).
+
+**Applied to the clip** (`artifacts/<clip>/reconstruction/reconstruction_summary.json`): 390
+identities, 16,866 state rows, 622 gaps.
+
+| source | rows | | state | rows |
+|---|---|---|---|---|
+| OBSERVED | 11,997 | | VISIBLE_ON_PITCH | 11,997 |
+| PREDICTED | 2,379 | | OCCLUDED | 1,974 |
+| INTERPOLATED | 536 | | OUTSIDE_CAMERA_VIEW | 399 |
+| no position | 1,954 | | UNKNOWN_MISSING | 2,496 |
+
+Failure analysis of the 4,869 non-observed rows (2,915 published, 1,954 withheld): 694 rows are on
+frames rejected for being too far from a keyframe, 459 on non-wide views and 111 on a segment with no
+keyframe; 588 were estimated but withheld because sigma exceeded 5 m (long predictions); 102 are
+detections rejected as implausible jumps. Most withholding is therefore calibration coverage, not
+the motion model. Of 622 gaps, 232 are interior (148 filled) and 390 trailing (316 filled, mostly
+2 s predictions). No gap crosses a shot boundary because ByteTrack ids are not reused across shots;
+the `across_shots` path is covered by a unit test only.
+
+No injury, return or substitution exists in this clip; the three annotation-only states have never
+been exercised on real data.
+
+**Team confidence** (same clip): 152 away and 221 home tracks `confident`, 36 and 41 `uncertain`, 42
+`other`, 162 `unknown`. Mean crop agreement 0.969; 37 of 450 tracks fall below 0.8.

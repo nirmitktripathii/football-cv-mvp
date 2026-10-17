@@ -29,7 +29,7 @@ Severity is the effect on downstream metrics, not the effort to fix.
 | F2 | Gaps are short but not negligible: median 1.3 s, p90 4 s. | 622 gaps over 390 identities | medium | motion models chosen per gap length by masking evaluation |
 | F3 | Position drift under long pans reaches 5–15 m; frames > 12 s from a keyframe are already rejected. | `docs/evaluation.md` §3 | high | unchanged; the reconstruction refuses to invent coordinates on rejected frames and reports `calibration_status` and `keyframe_dt_s` per row |
 | F4 | Team labels carry no confidence. 37 of 450 tracks have < 80 % of their crops agreeing with their label (mean crop agreement 96.9 %). | `team_stability.json` | medium | `agreement` and `team_status` columns added (confident / uncertain / other / unknown); labels unchanged |
-| F5 | No re-identification: a track breaks at every cut and many occlusions, so one player is many ids. | 654 ids for about 22 people on the pitch | high | **not fixed**; see §4 |
+| F5 | No re-identification: a track breaks at every cut and many occlusions, so one player is many ids. | 654 ids for about 22 people on the pitch | high | linker built (`tracking/identity.py`) but **not enabled**: held-out precision 0.86 against a 0.98 target (`docs/evaluation.md` §11); see §4 |
 | F6 | Ball is projected by its bottom-centre, which is wrong for an airborne ball. | `docs/architecture.md` | medium | not changed; ball rows are not reconstructed |
 | F7 | `research_notes.md` stated "no interpolation to fill gaps in animations". | grep | low | updated: reconstruction exists, and is visually distinct from observation |
 | F8 | An earlier audit pass (commit `eeaa839`) fixed crashes, wrong valuations and deployment problems. | git log | n/a | not repeated here |
@@ -49,10 +49,13 @@ Severity is the effect on downstream metrics, not the effort to fix.
 
 ## 4. Known limitations that remain
 
-- **No re-identification.** `identity_id` equals `track_id`. `reconstruct()` accepts a pre-linked
-  `identity_id` column, but no linker is shipped: without ground truth a linker's merges cannot be
-  verified, and a wrong merge silently fuses two players. Design and evaluation plan are in
-  `docs/future_pipeline_roadmap.md` §3.
+- **Re-identification is not reliable.** A conservative linker exists (`tracking/identity.py`: team,
+  position, kit-colour veto, ambiguity refusal) but on SkillCorner open tracking it linked about 3 %
+  of true continuations at 86 % precision, below the 0.98 target, so `identity.apply` is false and
+  `identity_id` equals `track_id` by default. Long-absence linking needs jersey numbers or a learned
+  appearance model; see `docs/evaluation.md` §11 and `docs/future_pipeline_roadmap.md` §3.
+- **Pitch mapping is about 4 m off on propagated frames** (`docs/evaluation.md` §10), not the 0.4 m
+  stated earlier; positions, regions and links all inherit it.
 - **Truth in the masking evaluation is the system's own smoothed projection**, not a surveyed
   position. The numbers show how well a motion model recovers a tracked, projected path, including
   its calibration jitter. They are not metric errors against real pitch positions.

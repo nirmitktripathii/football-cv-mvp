@@ -11,7 +11,7 @@ is **INCOMPLETE** by design: see [Report](#report).
 ## Pipeline
 
 ```
-ingest → detect → shots → motion → track → calibrate → reconstruct → analytics → visualize
+ingest → detect → shots → motion → track → calibrate → identity → reconstruct → regions → analytics → visualize
                                        (atomic_vaep and reconstruction_eval run separately)
 ```
 
@@ -24,6 +24,8 @@ ingest → detect → shots → motion → track → calibrate → reconstruct �
 | track | ByteTrack people, best ball per frame, torso-colour teams | `track_teams.csv` |
 | calibrate | manual keyframes → propagated homography → pitch metres, with rejections | `trajectories.parquet`, `calibration_report.json` |
 | reconstruct | fills short gaps in person tracks with a motion model, with provenance, state and uncertainty; never across cuts or uncalibrated frames | `player_states.parquet`, `gaps.parquet` |
+| identity | conservative tracklet linking by team, position and kit colour; writes decisions, **not applied by default** (see below) | `artifacts/<clip>/identity/` |
+| regions | probable regions for players not in view, labelled `INFERRED`, kept apart from observed positions | `inferred_regions.parquet`, `regions_summary.json` |
 | analytics | team shape, ball proximity, ball-zone xT, candidate sequences | `artifacts/<clip>/analytics/` |
 | visualize | annotated broadcast, top-down animation, state-aware top-down animation, per-sequence clips | `artifacts/<clip>/videos/` |
 | atomic_vaep | socceraction Atomic-VAEP on StatsBomb SPADL stores | `artifacts/atomic_vaep/` |
@@ -44,6 +46,7 @@ Table schemas: [docs/data_schemas.md](docs/data_schemas.md).
 | `?` in a dashed ring | location unknown; estimate withheld, ring shows how uncertain it is |
 | grey band below the touchline | off-pitch region, used by annotated players only |
 | red border / `CAMERA CUT` | no calibrated view, or a camera cut; nothing is drawn |
+| hatched patch, "inferred region" | a probable region for an unseen player of that team (90 % ellipse). **Not a position.** Thinned so that no more than 11 minus the visible players are drawn per team |
 
 Injury treatment, return to play and confirmed substitution are shown only when a manual annotation
 file says so (`reconstruction.annotations_file`); a gap in tracking never produces them.
@@ -104,9 +107,12 @@ Clip: Bengaluru FC v Sporting Club Delhi, ISL 2026-27 GW1, 6 minutes from the of
 
 - Players are detected in 98.8 % of sampled frames (median confidence 0.78) and tracked within
   shots; teams are separated by kit colour (blue home, white away; referees and keepers as "other").
-- 895 of 1,043 wide-view frames are mapped to pitch metres from 11 manual keyframes. Short-range
-  propagation is accurate (0.4 m median over 4 s); frames where drift was measured to grow
-  (5–15 m over ~30 s pans) are rejected rather than kept.
+- 895 of 1,043 wide-view frames are mapped to pitch metres from 11 manual keyframes. The mapping is
+  exact at the keyframes (0.18 m at held-out labelled points) but **about 4 m off on propagated
+  frames** (12 hand-labelled frames, 2–12 s from a keyframe: mean 4.1 m, median 3.9 m, worst frame
+  8.1 m; [docs/evaluation.md](docs/evaluation.md) §10). The earlier "0.4 m over 4 s" figure came from
+  one keyframe pair and an automatic line-agreement score, and was wrong as a statement of pitch error.
+  Frames over 12 s from a keyframe are rejected rather than kept.
 - Direction of play is measured from the data (home attacks left in this window).
 - Team shape of the visible players: median width 34–38 m, depth 20–22 m.
 - Missing positions are reconstructed and kept apart from observations: 11,997 observed rows,
@@ -114,6 +120,12 @@ Clip: Bengaluru FC v Sporting Club Delhi, ISL 2026-27 GW1, 6 minutes from the of
   RTS recovers a hidden 4 s stretch to 1.0 m MAE (linear 1.2 m, last-position hold 3.3 m) with a
   well-calibrated uncertainty. The truth in that test is the pipeline's own smoothed projection, so
   it measures the motion model, not real pitch error ([docs/evaluation.md](docs/evaluation.md) §9).
+- Unseen players are shown as inferred regions, not dots. Checked against SkillCorner open tracking
+  (match 1886347, detected positions only, 150 hidden stretches per gap length, held-out half): the 90 %
+  region held the true position 88–92 % of the time at gaps of 1 to 15 s, with areas of 134 to 430 m²
+  against 651 m² for team shape alone. This assumes a pitch-mapping error of 3 m; at 5 m the
+  regions are overconfident, so the default assumes 5 m. The first design failed at 15 s (0.78) and was
+  corrected on the other half ([docs/evaluation.md](docs/evaluation.md) §11).
 - Team labels carry a confidence: 373 of the 450 home/away tracks are confident, 77 uncertain (labels unchanged).
 - Five candidate attacking sequences are found and rendered. SEQ1 (47–61 s, Bengaluru FC towards
   the left goal) is the 1-0: on review of the rendered clip the ball is in the net at t 57.6 s. The
@@ -126,8 +138,12 @@ Clip: Bengaluru FC v Sporting Club Delhi, ISL 2026-27 GW1, 6 minutes from the of
 - The ball: detected in about half the frames with low confidence; no dedicated ball tracker, and
   lofted balls project to the wrong place.
 - Identity: tracks break at cuts and occlusions; per-track distances are fragments, not player totals.
-  No re-identification is implemented (a wrong merge cannot be detected without identity labels);
-  the design is in the roadmap.
+  A conservative linker exists (team, position, kit-colour veto; refuses ambiguous pairs) but **failed
+  its test**: on held-out SkillCorner data its links were right 86 % of the time (target 98 %) and found
+  about 3 % of true continuations. It is therefore off (`identity.apply: false`). Telling team-mates
+  apart needs jersey numbers or a learned appearance model ([docs/evaluation.md](docs/evaluation.md) §11).
+- Inferred regions are not scored for the thinning rule that decides which of them are drawn, and the
+  test is one match with ground truth only where SkillCorner detected the player.
 - Injury, return to play and substitution states are implemented and unit-tested, but this clip has
   none, so they have never run on real data. Positions are never counted as observed when
   reconstructed, and distance and speed are not computed from them.
@@ -151,7 +167,7 @@ docs/              architecture, audit, implementation plan, evaluation and prot
 models/            xT grid (committed), YOLO weights (git-ignored)
 scripts/           keyframe annotation helper
 src/football_cv/   pipeline package
-tests/             geometry, analytics and reconstruction unit tests (42)
+tests/             geometry, analytics, reconstruction, identity, regions and SkillCorner scoring unit tests (83)
 data/, artifacts/  local only (git-ignored), except data/manifests
 ```
 

@@ -88,7 +88,11 @@ Per identity and per shot (never across a cut), on the per-frame calibration of 
 
 ## What is deliberately absent
 
-- No event detection, possession model or re-identification (`identity_id` equals `track_id`).
+- No event detection or possession model. Re-identification is only a conservative tracklet linker
+  (`tracking/identity.py`, stage `identity`) whose output is **off by default** (`identity.apply:
+  false`): on public tracking data it was not accurate enough to trust (`docs/evaluation.md` §11).
+- Unseen players are shown as hatched **inferred regions** (stage `regions`), not as dots, and kept in
+  their own table.
 - Interpolated and predicted positions are labelled as such everywhere and are never counted as
   observed; physical metrics (distance, speed) are still computed from observed samples only.
 - No PPDA (needs defensive actions and passes).

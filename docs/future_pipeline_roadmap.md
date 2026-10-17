@@ -21,7 +21,9 @@ Ordered by what unblocks the most. Each step names the measurement that would sh
 
 - Appearance re-identification across occlusions and cuts; jersey-number OCR; team-sheet linking.
 - **Measure:** ID switches and IDF1 against a labelled tracking sequence (e.g. SoccerNet tracking).
-- **Tracklet linker (designed, not built).** Candidate pairs are tracklets of the same team with a
+- **Tracklet linker (built, evaluated, not enabled).** Result: `docs/evaluation.md` §11; the design below is what
+  was built, and the next step is jersey-number or learned appearance matching, since position and team
+  alone find only ~3 % of continuations and are right 86 % of the time (target 98 %). Candidate pairs are tracklets of the same team with a
   gap of at most a few seconds inside one shot, whose reconstructed estimate (`reconstruct()` already
   gives mean and sigma) lies within 2-3 sigma of the next tracklet's first position, plus an
   appearance distance on torso crops. A pair is linked only if it is the unique mutual best match

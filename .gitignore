@@ -9,6 +9,7 @@ venv/
 # Copyrighted source video, large data and model weights stay local
 data/raw/
 data/processed/
+data/external/
 artifacts/
 *.mp4
 *.mkv
@@ -29,3 +30,4 @@ HF_TOKEN*
 
 # Git Bash crash dumps
 *.stackdump
+.coverage

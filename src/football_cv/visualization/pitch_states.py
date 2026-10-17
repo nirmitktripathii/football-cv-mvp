@@ -10,6 +10,9 @@ Encoding:
 * faint marker, dotted edge, ring      predicted from history only (ring = 2-sigma)
 * diamond with black edge              manually annotated position
 * dashed ring with "?"                 location unknown: estimate withheld, ring = 2-sigma
+* hatched translucent ellipse           INFERRED probable region of an unobserved player (90 % mass): where
+                                         the player probably is, not a position; drawn from ``regions.py``,
+                                         a separate table from the observed / reconstructed states
 * grey band below the near touchline   off-pitch region (annotated players only)
 * red banner / border                  camera cut, or no calibrated view (nothing is drawn then)
 
@@ -29,7 +32,8 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib import animation  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
-from matplotlib.patches import Circle, Rectangle  # noqa: E402
+from matplotlib.patches import Circle, Ellipse, Patch, Rectangle  # noqa: E402
+from scipy.stats import chi2  # noqa: E402
 from mplsoccer import Pitch  # noqa: E402
 
 from football_cv.visualization.pitch_animation import BALL_STYLE, PITCH_KW, TEAM_STYLE  # noqa: E402
@@ -41,6 +45,8 @@ OFF_PITCH_M = 8.0          # depth of the off-pitch band drawn below y = 0
 MAX_RING_M = 12.0          # uncertainty rings larger than this are not drawn (too uncertain to show)
 CUT_BANNER_FRAMES = 3
 MARK = 90
+MAX_REGION_AREA_M2 = 1500.0   # inferred regions larger than this carry too little information to draw
+REGION_MASS = 0.9
 
 
 def _team(row_team: str) -> dict:
@@ -91,6 +97,26 @@ def _ring(ax, r, linestyle: str, fill_alpha: float = 0.0) -> list:
     return [ring]
 
 
+def draw_inferred(ax, regions: pd.DataFrame) -> tuple[list, int]:
+    """Hatched translucent ellipses for one sample's inferred regions; returns (artists, number too diffuse to draw)."""
+    artists: list = []
+    skipped = 0
+    r2 = chi2.ppf(REGION_MASS, 2)
+    if "plausible_unseen" in regions:
+        regions = regions[regions["plausible_unseen"]]
+    for r in regions.itertuples():
+        if r.area_m2 > MAX_REGION_AREA_M2:
+            skipped += 1
+            continue
+        st = _team(r.team_id)
+        rgb = matplotlib.colors.to_rgb(st["color"])
+        ell = Ellipse((r.cx, r.cy), 2 * np.sqrt(r2 * r.sxx), 2 * np.sqrt(r2 * r.syy), fc=(*rgb, 0.16), ec=(*rgb, 0.7),
+                      ls=(0, (2, 2)), lw=1.0, hatch="////", zorder=1.5)
+        ax.add_patch(ell)
+        artists.append(ell)
+    return artists, skipped
+
+
 def _trails(ax, observed: pd.DataFrame, t: float) -> list:
     """Trails of identities observed now, over their latest unbroken observed run within TRAIL_S."""
     out = []
@@ -120,6 +146,7 @@ def _legend(ax, team_names: dict) -> None:
         Line2D([], [], marker="o", ls=":", mfc=(*rgb, 0.25), mec="white", ms=8, label="predicted"),
         Line2D([], [], marker="D", ls="", mfc=grey, mec="black", ms=7, label="annotated"),
         Line2D([], [], marker="$?$", ls="", color="black", ms=8, label="location unknown"),
+        Patch(fc=(*rgb, 0.2), ec=grey, hatch="////", ls="--", label="inferred region (not a position)"),
     ]
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 0.0), ncol=6, fontsize=7.5, frameon=False)
 
@@ -132,7 +159,8 @@ def _pitch(figsize):
     return fig, ax
 
 
-def plot_state_snapshot(states: pd.DataFrame, sample_id: int, team_names: dict | None = None, ax=None):
+def plot_state_snapshot(states: pd.DataFrame, sample_id: int, team_names: dict | None = None, ax=None,
+                        regions: pd.DataFrame | None = None):
     """Static figure of one sample with provenance styling (used by the dashboard and tests)."""
     team_names = team_names or {}
     fig, ax = _pitch((8.5, 6.0)) if ax is None else (ax.figure, ax)
@@ -140,6 +168,8 @@ def plot_state_snapshot(states: pd.DataFrame, sample_id: int, team_names: dict |
     if len(cur):
         _trails(ax, states[states["position_source"] == "OBSERVED"], float(cur["timestamp_s"].iloc[0]))
     _, counts = draw_players(ax, cur)
+    if regions is not None and len(cur):
+        _, counts["too_diffuse"] = draw_inferred(ax, regions[regions["time_key"] == float(cur["timestamp_s"].iloc[0])])
     _legend(ax, team_names)
     return fig, ax, counts
 
@@ -147,7 +177,7 @@ def plot_state_snapshot(states: pd.DataFrame, sample_id: int, team_names: dict |
 def render_state_animation(
     states: pd.DataFrame, ball: pd.DataFrame, frames: pd.DataFrame, shots: pd.DataFrame, calib: pd.DataFrame,
     out_path: Path, start_s: float | None = None, end_s: float | None = None, team_names: dict | None = None,
-    fps: float = 5.0, title: str = "",
+    fps: float = 5.0, title: str = "", regions: pd.DataFrame | None = None,
 ) -> Path:
     """MP4/GIF of [start_s, end_s]; ``ball`` is the cleaned trajectory table (ball rows only are used)."""
     team_names = team_names or {}
@@ -161,6 +191,7 @@ def render_state_animation(
     observed = states[states["position_source"] == "OBSERVED"]
     ball_by = {k: g for k, g in ball[(ball["track_id"] < 0) & ~ball["jump"] & ball["x_s"].notna()].groupby("sample_id")}
     status = calib.set_index("sample_id")["calibration_status"].to_dict()
+    regions_by_t = {} if regions is None else {k: g for k, g in regions.groupby(regions["time_key"].round(3))}
 
     fig, ax = _pitch((10.5, 7.8))
     fig.subplots_adjust(top=0.9, bottom=0.17)
@@ -201,9 +232,12 @@ def render_state_animation(
             live.extend(_trails(ax, observed, r.timestamp_s))
             arts, c = draw_players(ax, cur)
             live.extend(arts)
+            inferred, diffuse = draw_inferred(ax, regions_by_t.get(round(r.timestamp_s, 3), pd.DataFrame(columns=["area_m2"])))
+            live.extend(inferred)
+            extra = f" | inferred regions {len(inferred)}" if regions is not None else ""
             note.set_text(
                 f"observed {c['observed']} | interpolated {c['interpolated']} | predicted {c['predicted']} | "
-                f"annotated {c['annotated']} | location unknown {c['unknown']}   (calibration: {st})"
+                f"annotated {c['annotated']} | location unknown {c['unknown']}{extra}   (calibration: {st})"
             )
         else:
             note.set_text(f"no tracked people in this frame (calibration: {st})")

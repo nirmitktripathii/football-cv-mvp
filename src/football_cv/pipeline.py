@@ -198,8 +198,46 @@ def stage_calibrate(cfg: dict) -> None:
     log.info("Calibration: %s", {k: v for k, v in report.items() if k != "keyframes"})
 
 
+def stage_identity(cfg: dict) -> None:
+    """Link track fragments of one person conservatively; writes the map and every decision (see identity.py)."""
+    from football_cv.tracking import appearance, identity
+
+    out, art = C.run_dir(cfg), C.artifacts_dir(cfg) / "identity"
+    art.mkdir(parents=True, exist_ok=True)
+    s = identity.settings(cfg)
+    traj = _read(cfg, "trajectories.parquet", "calibrate")
+    people = traj[(traj["track_id"] >= 0) & (traj["object_class"] == "person")].copy()
+    status = pd.read_csv(C.artifacts_dir(cfg) / "track_teams.csv")[["track_id", "team_status"]]
+    people = people.merge(status, on="track_id", how="left")
+    people["team_status"] = people["team_status"].fillna("unknown")
+    w, h = (cfg.get("reconstruction") or {}).get("image_size", [1280, 720])
+    m = float(s.get("edge_margin_px", 20.0))
+    people["edge"] = (people["bbox_x1"] < m) | (people["bbox_x2"] > w - m) | (people["bbox_y1"] < m) | (people["bbox_y2"] > h - m)
+    desc = None
+    if s.get("use_appearance", True):
+        samples = appearance.sample_bands(_read(cfg, "tracks.parquet", "track"), _frames(cfg), out,
+                                          min_box_h=float(cfg["teams"]["min_box_height_px"]))
+        desc = appearance.describe_tracks(samples)
+        desc.to_csv(art / "appearance.csv", index=False)
+    ident, decisions, tracklets = identity.link_tracklets(people, cfg, desc)
+    ident.to_parquet(out / "identity_map.parquet", index=False)
+    decisions.to_csv(art / "link_decisions.csv", index=False)
+    tracklets.to_csv(art / "tracklets.csv", index=False)
+    chains = ident.groupby("identity_id").size()
+    summary = {
+        "tracklets": len(tracklets), "candidate_pairs": len(decisions),
+        "by_status": {k: int(v) for k, v in decisions["status"].value_counts().items()} if len(decisions) else {},
+        "identities": int(ident["identity_id"].nunique()), "tracks": len(ident),
+        "merged_chains": int((chains > 1).sum()), "applied_to_reconstruction": bool(s.get("apply", False)),
+        "appearance_descriptors": 0 if desc is None else len(desc), "settings": s,
+    }
+    C.write_json(art / "identity_summary.json", summary)
+    log.info("Identity: %s", {k: v for k, v in summary.items() if k != "settings"})
+
+
 def stage_reconstruct(cfg: dict) -> None:
     from football_cv.reconstruction import reconstruct
+    from football_cv.tracking import identity
 
     out, art = C.run_dir(cfg), C.artifacts_dir(cfg) / "reconstruction"
     art.mkdir(parents=True, exist_ok=True)
@@ -208,6 +246,10 @@ def stage_reconstruct(cfg: dict) -> None:
     calib = _read(cfg, "frame_calibration.parquet", "calibrate")
     ann_file = (cfg.get("reconstruction") or {}).get("annotations_file")
     notes = reconstruct.load_annotations(C.resolve(ann_file) if ann_file else None)
+    map_path = out / "identity_map.parquet"
+    if identity.settings(cfg).get("apply") and map_path.exists():
+        traj = traj.merge(pd.read_parquet(map_path), on="track_id", how="left")
+        traj["identity_id"] = traj["identity_id"].fillna(traj["track_id"]).astype(int)
     states, gaps, warnings = reconstruct.reconstruct(traj, timeline, calib, cfg, notes)
     states.to_parquet(out / "player_states.parquet", index=False)
     gaps.to_parquet(out / "gaps.parquet", index=False)
@@ -220,6 +262,28 @@ def stage_reconstruct(cfg: dict) -> None:
     }
     C.write_json(art / "reconstruction_summary.json", summary)
     log.info("Reconstruction: %s", {k: v for k, v in summary.items() if k != "settings"})
+
+
+def stage_regions(cfg: dict) -> None:
+    """Inferred probable regions for unobserved players, written apart from player_states."""
+    from football_cv.reconstruction import regions
+
+    out, art = C.run_dir(cfg), C.artifacts_dir(cfg) / "regions"
+    art.mkdir(parents=True, exist_ok=True)
+    states = _read(cfg, "player_states.parquet", "reconstruct")
+    timeline = _read(cfg, "shots.parquet", "shots")[["sample_id", "timestamp_s", "shot_id"]]
+    s = regions.settings(cfg)
+    extended = regions.extend_states(states, timeline, float(s["horizon_s"]))
+    reg = regions.mark_plausible_unseen(regions.infer_regions(extended, cfg), extended, cfg)
+    reg.to_parquet(out / "inferred_regions.parquet", index=False)
+    summary = {
+        "regions": len(reg), "plausible_unseen": int(reg["plausible_unseen"].sum()),
+        "identities": int(reg["identity_id"].nunique()),
+        "by_components": {k: int(v) for k, v in reg["components"].value_counts().items()},
+        "median_area_m2": float(reg["area_m2"].median()) if len(reg) else None, "settings": s,
+    }
+    C.write_json(art / "regions_summary.json", summary)
+    log.info("Regions: %s", {k: v for k, v in summary.items() if k != "settings"})
 
 
 def stage_reconstruction_eval(cfg: dict) -> None:
@@ -310,12 +374,15 @@ def stage_visualize(cfg: dict) -> None:
     states_path = out / "player_states.parquet"
     states = pd.read_parquet(states_path) if states_path.exists() else None
     shots_tbl = _read(cfg, "shots.parquet", "shots") if states is not None else None
+    reg_path = out / "inferred_regions.parquet"
+    regions_tbl = pd.read_parquet(reg_path) if reg_path.exists() else None
     for name, start, end in windows:
         if states is not None and (name != "full" or v.get("full_states", False)):
             pitch_states.render_state_animation(
                 states, traj, frames, shots_tbl, calib, art / f"pitch_states_{name}.gif" if name != "full"
                 else art / "pitch_states_full.mp4", start, end, names, fps,
                 title=f"{names['home']} v {names['away']}" + ("" if name == "full" else f"  {name}"),
+                regions=regions_tbl,
             )
         if name != "full" or v.get("full_broadcast", True):
             broadcast.render_broadcast_video(traj_all, frames, out, calib, art / f"broadcast_{name}.mp4", start, end, fps)
@@ -344,7 +411,9 @@ STAGES = {
     "motion": stage_motion,
     "track": stage_track,
     "calibrate": stage_calibrate,
+    "identity": stage_identity,
     "reconstruct": stage_reconstruct,
+    "regions": stage_regions,
     "analytics": stage_analytics,
     "visualize": stage_visualize,
 }

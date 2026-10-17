@@ -13,7 +13,7 @@ observation plus the prediction horizon, per shot). Written by `reconstruction/r
 |---|---|---|
 | `sample_id` | int | sampled-frame index (5 fps); joins to `frames`, `shots`, `frame_calibration` |
 | `timestamp_s` | float | clip time of the frame; the video and the pitch view share this clock |
-| `identity_id` | int | person identity; equals `track_id` (no re-identification) |
+| `identity_id` | int | person identity; equals `track_id` unless `identity.apply` is true, in which case it is the linker's `identity_id` (off by default, see `docs/evaluation.md` §11) |
 | `track_id` | int | ByteTrack id |
 | `team_id` | str | `home`, `away`, `other` or `unknown` (see `track_teams.csv` for confidence) |
 | `shot_id` | int | camera shot; gaps are never bridged across shots |
@@ -71,6 +71,41 @@ One row per missing interval, including intervals that were *not* filled.
 | `state` | most frequent state inside the gap |
 | `filled` | whether any position was published |
 | `reason` | joined reasons why positions were withheld or never attempted |
+
+## `inferred_regions.parquet`
+
+Written by the `regions` stage (`reconstruction/regions.py`). **Not positions**: one probable region per
+unobserved sample, always `source = INFERRED`, never merged into `player_states` and never given a
+coordinate that could be read as a dot. Built from the motion estimate (`x_est_m`, `y_est_m`,
+`sigma_m`, extended up to `regions.horizon_s` past the last and before the first observation) fused
+with a team-shape prior, widened by `calibration_sigma_m`.
+
+| column | meaning |
+|---|---|
+| `time_key` | clip time (`timestamp_s`) of the sample |
+| `identity_id`, `team_id` | the identity the region belongs to and its team |
+| `cx`, `cy` | centre of the region, metres |
+| `sxx`, `syy` | variance per axis (axis-aligned), m² |
+| `area_m2` | area of the 90 % ellipse |
+| `components` | `motion+shape`, `motion` or `shape` |
+| `source` | always `INFERRED` |
+| `plausible_unseen` | whether the region may stand for a player who is genuinely off-screen (see below); only these are drawn |
+
+`plausible_unseen` exists because, without re-identification, every track fragment gets a region,
+including fragments of players who are visible under another id. A region is not plausible if its 50 %
+ellipse is likely to hold an observed team-mate, and each team keeps at most 11 minus its observed
+count, smallest area first. It reads "an unseen player of this team is probably here", not which one.
+This display rule has not been scored against ground truth.
+
+## Identity outputs (`artifacts/<clip>/identity/`)
+
+- `identity_map.parquet`: `track_id`, `identity_id` (lowest track id of a linked chain; equals `track_id`
+  when unlinked).
+- `link_decisions.csv`: `pred_track_id`, `succ_track_id`, `gap_s`, `cost`, `false_matches`, `margin`,
+  `status`. `linked` only if the pair has no rival within `ambiguity_margin` and the expected number of
+  unseen team-mates that would fit equally well is at most `max_false_matches`; otherwise `ambiguous`,
+  `not_best` or `weak`.
+- `tracklets.csv`, `identity_summary.json`: tracklet endpoints and counts.
 
 ## Other tables used by the new stages
 

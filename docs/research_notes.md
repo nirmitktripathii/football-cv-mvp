@@ -32,7 +32,9 @@ Decisions made while building the MVP, what was tried, and what did not work. Re
   near-zero residuals but projected implausibly; it was removed.
 - **Point-on-line constraints** (one DLT equation per point) are cheap and constrain the direction
   that box landmarks leave free, typically towards the near touchline.
-- **Camera-motion propagation drifts** with pan length: 0.4 m over 4 s, 4–10 m (median) over ~30 s.
+- **Camera-motion propagation drifts** with pan length. Corrected: an early check on one keyframe pair gave
+  0.4 m over 4 s, but hand-labelled held-out landmarks on 12 propagated frames (2–12 s from a keyframe)
+  average about 4 m (docs/evaluation.md §10); 4–10 m (median) over ~30 s.
 - **Line-chamfer refinement does not rescue large drift.** Aligning projected pitch lines to the
   image's white-line mask converges to a neighbouring line when the starting error is several
   metres. It is kept for keyframes (small corrections, checked against the anchors) and not used on

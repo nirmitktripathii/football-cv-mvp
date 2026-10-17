@@ -52,7 +52,8 @@ hidden window of it?
   the gap lengths where they are used, and the 95 % coverage of the shipped uncertainty (`rts`) must
   be ≥ 0.90.
 - **Cannot claim:** errors against real pitch positions. The truth is the pipeline's own smoothed
-  projection, so calibration drift and jitter are inside it. Only short-range relative accuracy of
+  projection, so calibration drift and jitter are inside it (that error is measured separately,
+  docs/evaluation.md §10: about 4 m on propagated frames). Only short-range relative accuracy of
   the motion model is measured.
 - **Known bias:** the `predict = cv` default was selected on this same masking data.
 

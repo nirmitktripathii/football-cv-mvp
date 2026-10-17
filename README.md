@@ -103,6 +103,32 @@ name) and `configs/calibration_keyframes.json`.
 Clip: Bengaluru FC v Sporting Club Delhi, ISL 2026-27 GW1, 6 minutes from the official full replay
 (1-0 goal, replays, kick-off, open play). Full numbers and method: [docs/evaluation.md](docs/evaluation.md).
 
+### Results at a glance
+
+All figures are drawn from the evaluation files by `scripts/make_figures.py`. None contains broadcast
+footage. Passes and failures are both shown.
+
+**Unseen players as probable regions: meets its pre-registered criteria** (held-out SkillCorner match,
+detected positions only; [§11.2](docs/evaluation.md)). The red dashed line is the first design, which
+failed at 15 s; the blue line is the fix tuned on the other half of the match.
+
+![Coverage and size of inferred regions](docs/images/regions_coverage.png)
+
+**Pitch mapping: about 4 m off on propagated frames**, measured by hand at held-out landmarks
+([§10](docs/evaluation.md)). This is the main accuracy limit of everything drawn on the pitch.
+
+![Pitch-mapping error at hand-labelled landmarks](docs/images/pitch_mapping_error.png)
+
+**Identity linking: fails its target and is off by default** ([§11.1](docs/evaluation.md)). It beats
+greedy linking by a wide margin but is still not reliable enough to merge tracks.
+
+![Tracklet linker precision against target](docs/images/linker_precision.png)
+
+**State-aware top-down view** (observed, interpolated, predicted and unknown, kept visibly separate; see
+the legend above):
+
+![Top-down view with observation states](docs/images/topdown_states.png)
+
 **What works**
 
 - Players are detected in 98.8 % of sampled frames (median confidence 0.78) and tracked within
@@ -165,7 +191,7 @@ app/               Streamlit dashboard (read-only over artifacts)
 configs/           pipeline config, manual calibration keyframes
 docs/              architecture, audit, implementation plan, evaluation and protocol, schemas, research notes, roadmap
 models/            xT grid (committed), YOLO weights (git-ignored)
-scripts/           keyframe annotation helper
+scripts/           keyframe annotation helper, validation and SkillCorner evaluation scripts, figure generator
 src/football_cv/   pipeline package
 tests/             geometry, analytics, reconstruction, identity, regions and SkillCorner scoring unit tests (83)
 data/, artifacts/  local only (git-ignored), except data/manifests

@@ -12,6 +12,8 @@ data/processed/
 data/external/
 artifacts/
 *.mp4
+# the one short annotated excerpt shown in the README (attribution and takedown note in the README)
+!docs/media/broadcast_overlay_SEQ1.mp4
 *.mkv
 *.webm
 *.pt

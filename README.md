@@ -140,6 +140,11 @@ regions are large and overlap because the pitch mapping is about 4 m off and the
 858 m² on this clip); this sequence is also marked low confidence (ball seen in 45 % of frames, up to
 9 s from a manual keyframe). Re-render with `python scripts/render_demo.py --seq SEQ1`.
 
+The same 14 seconds on the broadcast picture, with player boxes, track ids, the projected pitch lines and
+a mini-map: [docs/media/broadcast_overlay_SEQ1.mp4](docs/media/broadcast_overlay_SEQ1.mp4) (2.7 MB; click
+through to play). It is a short excerpt of the replay shown for research illustration only; see
+[Licences and attribution](#licences-and-attribution).
+
 **What works**
 
 - Players are detected in 98.8 % of sampled frames (median confidence 0.78) and tracked within
@@ -210,7 +215,10 @@ data/, artifacts/  local only (git-ignored), except data/manifests
 
 ## Licences and attribution
 
-- Source video: © the Indian Super League and its broadcaster. Not redistributed.
+- Source video: © the Indian Super League and its broadcaster. The full match is not redistributed. The
+  repository includes one 14-second annotated excerpt ([docs/media/broadcast_overlay_SEQ1.mp4](docs/media/broadcast_overlay_SEQ1.mp4))
+  solely to illustrate this non-commercial research prototype. If the rights holder objects, open an issue
+  and it will be removed.
 - Event data behind xT and Atomic-VAEP: [StatsBomb open data](https://github.com/statsbomb/open-data),
   used under its user agreement (attribution required).
 - Detector: Ultralytics YOLO11, AGPL-3.0. socceraction: MIT.

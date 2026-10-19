@@ -18,9 +18,26 @@ DEFAULT_CONFIG = REPO_ROOT / "configs" / "default.yaml"
 
 
 def load_config(path: str | Path = DEFAULT_CONFIG, overrides: list[str] | None = None) -> dict[str, Any]:
+    """Load a YAML config. A top-level ``extends: <file>`` (relative to this file) is loaded first and
+    this file's values are deep-merged over it, so a per-match config only lists what differs."""
+    path = Path(path)
     with open(path, encoding="utf-8") as fh:
-        cfg = yaml.safe_load(fh)
+        cfg = yaml.safe_load(fh) or {}
+    base = cfg.pop("extends", None)
+    if base is not None:
+        cfg = deep_merge(load_config(path.parent / base), cfg)
     return apply_overrides(cfg, overrides or [])
+
+
+def deep_merge(base: dict[str, Any], top: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of ``base`` with ``top`` merged in; nested dicts merge, anything else replaces."""
+    out = copy.deepcopy(base)
+    for key, value in top.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = deep_merge(out[key], value)
+        else:
+            out[key] = copy.deepcopy(value)
+    return out
 
 
 def apply_overrides(cfg: dict[str, Any], overrides: list[str]) -> dict[str, Any]:

@@ -1,0 +1,40 @@
+# Inter Milan vs Napoli, tactical camera (user-supplied file, 1280x720, 25 fps, 101 min, half-time cut out).
+# Only the values that differ from default.yaml; run with --config configs/inter_napoli.yaml.
+extends: default.yaml
+
+clip:
+  id: inter_napoli
+  video_path: "data/Inter Milan vs Napoli Tactical Camera.mp4"
+  source_url: null
+  source_title: Inter Milan vs Napoli Tactical Camera
+  source_channel: null
+  source_upload_date: null
+  source_offset_s: 0
+  # The burned-in clock reads 44:53 at video 2700 s and 75:23 at video 4800 s, so the first half kicks off at
+  # about video 7 s and the second half at about 2977 s. One kickoff value cannot label both halves, so
+  # match-clock labels are left off rather than wrong after half-time.
+  kickoff_replay_s: null
+  home_team: Inter
+  away_team: Napoli
+  # Measured from frames at 2700 s and 4800 s: Inter dark navy, Napoli red. Referees, assistants and at
+  # least one goalkeeper wear neon yellow, so colour alone cannot separate those roles.
+  home_kit: black
+  away_kit: red
+  home_attacks: null   # changes at half-time; set per window before running analytics
+
+evaluation:
+  # Phase 0 annotation windows (docs/annotation_guide.md). Video seconds, sampled at sampling.fps.
+  # Chosen from a one-frame-per-minute survey of the match to cover different situations.
+  windows:
+    w1_open_t600:
+      start_s: 600.0
+      end_s: 630.0
+      note: first-half open play; overlaps the 60 s baseline clip (docs/implementation_plan_tactical.md section 3)
+    w2_corner_t2695:
+      start_s: 2695.0
+      end_s: 2725.0
+      note: corner at 44:53, crowded penalty box, referee in neon yellow next to the goalkeeper
+    w3_open_t4800:
+      start_s: 4800.0
+      end_s: 4830.0
+      note: second-half open play, wide view, both assistants and spare balls on the touchline

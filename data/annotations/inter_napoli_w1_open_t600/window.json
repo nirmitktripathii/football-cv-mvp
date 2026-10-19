@@ -1,0 +1,24 @@
+{
+  "clip_id": "inter_napoli_w1_open_t600",
+  "window": "w1_open_t600",
+  "note": "first-half open play; overlaps the 60 s baseline clip (docs/implementation_plan_tactical.md section 3)",
+  "video_path": "data/Inter Milan vs Napoli Tactical Camera.mp4",
+  "start_s": 600.0,
+  "end_s": 630.0,
+  "sampling_fps": 5.0,
+  "num_frames": 151,
+  "frame_size": [
+    1280,
+    720
+  ],
+  "first_timestamp_s": 600.0,
+  "last_timestamp_s": 630.0,
+  "prefill": {
+    "person_tracks": 151,
+    "person_boxes": 2411,
+    "ball_boxes": 128
+  },
+  "frames_zip": "data/processed/inter_napoli_w1_open_t600/cvat_frames.zip",
+  "git_commit": "eca161e6aef9d1e3b5d0fe801597d406dd1a9141",
+  "created_utc": "2026-10-19T17:51:39+00:00"
+}

@@ -34,3 +34,8 @@ HF_TOKEN*
 # Git Bash crash dumps
 *.stackdump
 .coverage
+
+# SRITrack / YOLOX checkpoints
+*.pth
+*.pth.tar*
+models/sritrack/

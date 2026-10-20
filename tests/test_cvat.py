@@ -51,3 +51,11 @@ def test_label_spec_lists_every_role_and_team():
     assert set(spec) == {"person", "ball", "ignore"}
     attrs = {a["name"]: a["values"] for a in spec["person"]["attributes"]}
     assert attrs == {"role": list(cvat.ROLES), "team": list(cvat.TEAMS)}
+
+
+def test_prefill_uses_detector_roles_when_present():
+    rows = [dict(_row(0, 1, 0.0, team="other"), role="referee"), dict(_row(0, 2, 40.0, team="other"), role="goalkeeper"),
+            dict(_row(0, 3, 80.0, team="home"), role="player")]
+    gt = cvat.parse_cvat_xml(cvat.to_cvat_video_xml(pd.DataFrame(rows), num_frames=1, width=100, height=100, name="t"))
+    got = {int(r.gt_id): (r.role, r.team) for r in gt.itertuples()}
+    assert got == {0: ("referee", "none"), 1: ("goalkeeper", "unknown"), 2: ("player", "home")}

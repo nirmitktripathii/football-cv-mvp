@@ -19,4 +19,6 @@ def test_extends_is_resolved_relative_to_the_file_and_overrides_still_win(tmp_pa
 def test_inter_napoli_config_loads_on_top_of_default():
     cfg = load_config(REPO_ROOT / "configs" / "inter_napoli.yaml")
     assert cfg["clip"]["home_team"] == "Inter" and "sampling" in cfg
-    assert set(cfg["evaluation"]["windows"]) == {"w1_open_t600", "w2_corner_t2695", "w3_open_t4800"}
+    windows = set(cfg["evaluation"]["windows"])
+    assert {"w1_open_t600", "w2_corner_t2695", "w3_open_t4800"} <= windows
+    assert {"a1_open_t600", "a2_corner_t2707", "a3_open_t4800"} <= windows

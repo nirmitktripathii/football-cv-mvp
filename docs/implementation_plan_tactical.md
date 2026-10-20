@@ -281,7 +281,7 @@ Thresholds are fixed **before** each run.
 |---|---|---|
 | **0. Evaluation set** | Annotate 2–3 windows of this match (≈30 s each, 5 fps) with identity, role, team and ball boxes: bootstrap from tracker output, correct by hand in CVAT. Add a per-match config (kits, halves). Optionally SportsMOT/SoccerNet-tracking as a public MOT proxy. | annotation exists and is reviewed; metric scripts (HOTA/IDF1 via TrackEval) reproduce on a toy case |
 | 1. Feasibility | **this document** | — |
-| 2. Detector | YOLOX (Apache-2.0) with COCO weights: person + sports ball, same classes as today → ablation B is a detector swap only. 4-class fine-tune (player/GK/referee/ball) **only if** phase 3's role logic fails its gate; needs a licence-checked dataset and a Kaggle T4, not this GPU. | person recall ≥ current YOLO11m and ball recall not worse, at ≤ current latency |
+| 2. Detector | YOLOX (Apache-2.0) with COCO weights: person + sports ball, same classes as today → ablation B is a detector swap only. **Update:** the user supplied a fine-tuned 4-class model (ball/player/goalkeeper/referee) that is now an optional detector backend (`configs/inter_napoli_4class.yaml`, `docs/detector_4class.md`); a YOLOX fine-tune on the user's annotated dataset (Colab) comes later and would replace it behind the same flag. | person recall ≥ current YOLO11m and ball recall not worse, at ≤ current latency |
 | 3. Teams and roles | per-match kit clustering with "other"; goalkeeper = "other" track that stays in a penalty area, affiliated **by position** (which goal it defends, from team centroids per half), not colour; referee = remaining "other", **no team**. | team accuracy ≥ 95 % with coverage reported; GK affiliation ≥ 95 % on confident observations |
 | 4. Tracking | class-specific ByteTrack policies (people vs ball); then SRITrack's tracker on the same detections via an adapter (ablation D). | IDF1 and ID switches better than B on the eval windows; Re-ID cost fits the runtime budget |
 | 5. Persistent identity | a manager over `local_track_id`: gallery per role+team, Re-ID only on triggers (new track, re-entry, ambiguous match), refusal on ambiguity, a role-incompatibility veto. The ball never enters the gallery. | **zero** role-incompatible merges; recovery precision ≥ 0.95 (the linker's 0.98 target was missed with colour alone) |
@@ -330,8 +330,9 @@ The gate stays open until the three `annotations.xml` files exist and have been 
    per window. The pre-fills and the guide are ready (§6.1, [annotation_guide.md](annotation_guide.md)).
 2. **YOLOX install.** It requires cloning the Megvii repo (Apache-2.0) and building it into the venv.
    It is a small download, but a new dependency.
-3. **4-class detector.** No public YOLOX checkpoint has player, goalkeeper, referee and ball classes. A
-   fine-tune is deferred until phase 3 shows that position/colour role logic is not enough.
+3. **4-class detector.** No public YOLOX checkpoint has player, goalkeeper, referee and ball classes. The user's
+   fine-tuned Ultralytics model is used meanwhile (see `docs/detector_4class.md`); the YOLOX fine-tune on the
+   user's annotated dataset is a later step.
 4. **Runtime budget.** On this GPU, detection takes about 5 h per match (§3). Per-detection Re-ID would
    add about 18–26 h (§4.3), so Re-ID must be triggered rather than run on every detection. The
    realistic targets are offline processing or a rented GPU, not real time.

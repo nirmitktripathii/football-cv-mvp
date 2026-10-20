@@ -38,3 +38,18 @@ evaluation:
       start_s: 4800.0
       end_s: 4830.0
       note: second-half open play, wide view, both assistants and spare balls on the touchline
+
+    # 10 s dense slices that are actually annotated (a person corrects ~50 consecutive frames per slice;
+    # identity metrics need consecutive frames, and 10 s shows ID switches and team errors).
+    a1_open_t600:
+      start_s: 600.0
+      end_s: 610.0
+      note: slice of w1, first-half open play
+    a2_corner_t2707:
+      start_s: 2707.0
+      end_s: 2717.0
+      note: slice of w2 around the corner at ~2712 s; crowded box, referee in neon yellow near the goalkeeper
+    a3_open_t4800:
+      start_s: 4800.0
+      end_s: 4810.0
+      note: slice of w3, second-half open play

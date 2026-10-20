@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 
 BALL_TRACK_ID = -1
 TRACK_COLUMNS = [
-    "sample_id", "frame_id", "timestamp_s", "shot_id", "segment_id", "track_id", "object_class",
+    "sample_id", "frame_id", "timestamp_s", "shot_id", "segment_id", "track_id", "object_class", "role",
     "confidence", "bbox_x1", "bbox_y1", "bbox_x2", "bbox_y2", "foot_x", "foot_y", "stab_x", "stab_y",
 ]
 
@@ -79,7 +79,7 @@ def _rows(dets: pd.DataFrame, track_ids, G: np.ndarray, m) -> list[dict]:
             {
                 "sample_id": d.sample_id, "frame_id": d.frame_id, "timestamp_s": d.timestamp_s,
                 "shot_id": m.shot_id, "segment_id": m.segment_id, "track_id": int(tid),
-                "object_class": d.object_class, "confidence": d.confidence,
+                "object_class": d.object_class, "role": getattr(d, "role", "") or "", "confidence": d.confidence,
                 "bbox_x1": d.bbox_x1, "bbox_y1": d.bbox_y1, "bbox_x2": d.bbox_x2, "bbox_y2": d.bbox_y2,
                 "foot_x": fx, "foot_y": fy, "stab_x": sx, "stab_y": sy,
             }

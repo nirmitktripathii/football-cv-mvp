@@ -141,10 +141,12 @@ def stage_track(cfg: dict) -> None:
     )
     t = cfg["teams"]
     colours = teams.sample_colours(tr, frames, out, min_box_h=float(t["min_box_height_px"]))
+    roles = teams.majority_role(tr)
+    kit_colours = colours[colours["track_id"].map(roles).fillna("").isin(teams.KIT_ROLES)]
     table, diag = teams.assign_teams(
-        colours, cfg["clip"]["home_kit"], cfg["clip"]["away_kit"], float(t["other_distance_factor"]),
+        kit_colours, cfg["clip"]["home_kit"], cfg["clip"]["away_kit"], float(t["other_distance_factor"]),
     )
-    tr = tr.merge(table[["track_id", "team_id"]], on="track_id", how="left")
+    tr = teams.apply_roles(tr, table, roles)
     tr.loc[tr["object_class"] == "ball", "team_id"] = "ball"
     tr["team_id"] = tr["team_id"].fillna("unknown")
     tr.to_parquet(out / "tracks.parquet", index=False)

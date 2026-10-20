@@ -210,7 +210,7 @@ def label_metrics(pairs: pd.DataFrame) -> dict:
            "team_outfield": _affiliation(sided[sided["gt_role"] == "player"]),
            "goalkeeper_affiliation": _affiliation(sided[sided["gt_role"] == "goalkeeper"]),
            "referee_given_team": _rate(refs["pred_team"].isin(OUTFIELD).sum(), len(refs))}
-    known = pairs[pairs["pred_role"].notna() & (pairs["gt_role"] != "unknown")]
+    known = pairs[pairs["pred_role"].fillna("").ne("") & (pairs["gt_role"] != "unknown")]
     out["role_accuracy"] = _rate((known["pred_role"] == known["gt_role"]).sum(), len(known)) if len(known) else None
     return out
 

@@ -132,3 +132,27 @@ def assign_teams(
     }
     log.info("Team clustering: %s", diag)
     return table, diag
+
+
+KIT_ROLES = ("", "player")  # roles whose shirt colour says which team a person plays for
+
+
+def majority_role(tracks: pd.DataFrame) -> pd.Series:
+    """Per person track, the detector role seen most often ("" when the detector gave none)."""
+    people = tracks[(tracks["track_id"] >= 0) & (tracks["object_class"] == "person")]
+    return people.groupby("track_id")["role"].agg(
+        lambda r: r[r != ""].mode().iloc[0] if (r != "").any() else ""
+    )
+
+
+def apply_roles(tracks: pd.DataFrame, table: pd.DataFrame, roles: pd.Series) -> pd.DataFrame:
+    """Add the track-level ``role`` and a ``team_id`` that respects it.
+
+    Referees belong to no team ("other"). Goalkeepers wear a third kit, so their colour cannot name a team;
+    they stay "unknown" until a position-based rule can (needs the calibrated pitch).
+    """
+    out = tracks.merge(table[["track_id", "team_id"]], on="track_id", how="left")
+    out["role"] = out["track_id"].map(roles).fillna("")
+    out.loc[out["role"] == "referee", "team_id"] = "other"
+    out.loc[out["role"] == "goalkeeper", "team_id"] = "unknown"
+    return out

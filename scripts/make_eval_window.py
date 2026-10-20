@@ -41,6 +41,8 @@ def window_config(config_path: str, window: str, extra: list[str]) -> dict:
     spec = base.get("evaluation", {}).get("windows", {}).get(window)
     if spec is None:
         raise SystemExit(f"window {window!r} is not under evaluation.windows in {config_path}")
+    if any(e.replace(" ", "").startswith("clip.id=") for e in extra):
+        raise SystemExit("do not override clip.id: each window runs as <clip.id>_<window>; set clip.id in the config instead")
     sets = [f"clip.id={base['clip']['id']}_{window}", f"sampling.start_s={spec['start_s']}",
             f"sampling.end_s={spec['end_s']}", *extra]
     return C.load_config(config_path, sets)

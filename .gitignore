@@ -26,6 +26,7 @@ graphify-out/
 .ipynb_checkpoints/
 .env
 HF_TOKEN*
+ROBOFLOW_API_KEY*
 
 # Streamlit agent skills (environment-specific symlinks)
 .agents/skills/developing-with-streamlit

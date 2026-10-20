@@ -46,6 +46,15 @@ def label_spec() -> list[dict]:
     ]
 
 
+def _detector_role(rows: pd.DataFrame) -> str:
+    """The role a role-aware detector gave this track, or "" (kit colour alone cannot tell roles apart)."""
+    if "role" not in rows:
+        return ""
+    seen = rows["role"].fillna("")
+    seen = seen[seen.isin(ROLES)]
+    return str(seen.mode().iloc[0]) if len(seen) else ""
+
+
 def _runs(frames: np.ndarray) -> list[tuple[int, int]]:
     """Split sorted frame numbers into contiguous [start, end] runs."""
     breaks = np.flatnonzero(np.diff(frames) > 1)
@@ -97,7 +106,11 @@ def to_cvat_video_xml(tracks: pd.DataFrame, num_frames: int, width: int, height:
     people = t[(t["object_class"] == PERSON) & (t["track_id"] >= 0)]
     for _, rows in people.groupby("track_id", sort=True):
         team_id = str(rows["team_id"].mode().iloc[0]) if "team_id" in rows else "unknown"
-        attrs = {"role": _PREFILL_ROLE.get(team_id, "unknown"), "team": _PREFILL_TEAM.get(team_id, "unknown")}
+        role = _detector_role(rows)
+        attrs = {
+            "role": role or _PREFILL_ROLE.get(team_id, "unknown"),
+            "team": "none" if role == "referee" else _PREFILL_TEAM.get(team_id, "unknown"),
+        }
         _add_track(root, xml_id, PERSON, rows, num_frames, attrs)
         xml_id += 1
     ball = t[t["object_class"] == BALL]

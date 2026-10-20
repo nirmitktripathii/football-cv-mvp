@@ -1,0 +1,24 @@
+{
+  "clip_id": "inter_napoli_fb4_a3_open_t4800",
+  "window": "a3_open_t4800",
+  "note": "slice of w3, second-half open play",
+  "video_path": "data/Inter Milan vs Napoli Tactical Camera.mp4",
+  "start_s": 4800.0,
+  "end_s": 4810.0,
+  "sampling_fps": 5.0,
+  "num_frames": 51,
+  "frame_size": [
+    1280,
+    720
+  ],
+  "first_timestamp_s": 4800.0,
+  "last_timestamp_s": 4810.0,
+  "prefill": {
+    "person_tracks": 66,
+    "person_boxes": 996,
+    "ball_boxes": 45
+  },
+  "frames_zip": "data/processed/inter_napoli_fb4_a3_open_t4800/cvat_frames.zip",
+  "git_commit": "de720bc68de45dd4f472180809a98e87fa02cc8b",
+  "created_utc": "2026-10-19T19:12:37+00:00"
+}

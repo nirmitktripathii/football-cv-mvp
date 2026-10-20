@@ -1,0 +1,44 @@
+{
+  "clip": {
+    "id": "inter_napoli_fb4_a2_corner_t2707",
+    "video_path": "data/Inter Milan vs Napoli Tactical Camera.mp4",
+    "source_url": null,
+    "source_title": "Inter Milan vs Napoli Tactical Camera",
+    "source_channel": null,
+    "source_upload_date": null,
+    "source_offset_s": 0,
+    "kickoff_replay_s": null,
+    "home_team": "Inter",
+    "away_team": "Napoli",
+    "home_kit": "black",
+    "away_kit": "red",
+    "home_attacks": null
+  },
+  "video": {
+    "path": "E:\\football-cv-mvp\\data\\Inter Milan vs Napoli Tactical Camera.mp4",
+    "size_bytes": 1413196593,
+    "codec": "h264",
+    "width": 1280,
+    "height": 720,
+    "fps": 25.0,
+    "r_frame_rate": 25.0,
+    "nb_frames": 151768,
+    "duration_s": 6070.741043,
+    "variable_frame_rate": false,
+    "probe": "ffprobe"
+  },
+  "sampling": {
+    "fps": 5.0,
+    "start_s": 2707.0,
+    "end_s": 2717.0,
+    "preview_every_s": 30.0
+  },
+  "clip_window_in_replay_s": [
+    0,
+    6070.741043
+  ],
+  "clip_window_match_clock": [
+    null,
+    null
+  ]
+}

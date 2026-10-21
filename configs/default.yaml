@@ -118,8 +118,10 @@ role_probe:
   model: models/role_probe/all.npz
   checkpoint: models/sritrack/model.pth.tar-60
   feature: fc
-  keeper_rule: prior_or_probe   # prior_only: keepers from the position prior alone (stage 1d ablation Q0)
+  keeper_rule: prior_or_probe   # prior_only: prior alone (Q0); prior_or_probe_in_area: probe-only keepers must be in a penalty area (stage 3)
   min_side_px: 8
+  edge_margin_px: 2     # stage 3b: boxes within this many px of the frame edge keep the detector role (cut-off people); null = off
+  min_height_px: 20     # stage 3b: boxes shorter than this keep the detector role; null = off
   penalty_depth_m: 16.5
   penalty_half_width_m: 20.16
   tie_m: 2.0

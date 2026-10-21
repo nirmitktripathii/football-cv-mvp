@@ -1,0 +1,10 @@
+# Stage 3 guards on the role relabel for window a1_open_t600 (docs/role_probe.md stage 3, criteria declared before running).
+extends: inter_napoli_fb4_f5p_a1.yaml
+
+clip:
+  id: inter_napoli_fb4f5q   # run as inter_napoli_fb4f5q_a1_open_t600
+
+role_probe:
+  keeper_rule: prior_or_probe_in_area
+  edge_margin_px: 2
+  min_height_px: 20

@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 CLASSES = ("player", "goalkeeper", "referee")
 USABLE_STATUS = ("keyframe", "propagated", "propagated_unrefined")
-KEEPER_RULES = ("prior_or_probe", "prior_only")
+KEEPER_RULES = ("prior_or_probe", "prior_only", "prior_or_probe_in_area")
 SEED = 0
 
 
@@ -100,17 +100,40 @@ def keeper_prior(frame: np.ndarray, xy: np.ndarray, eligible: np.ndarray, p_keep
     return fires
 
 
-def assign_roles(proba: np.ndarray, fires: np.ndarray, rule: str) -> np.ndarray:
-    """Final role per row from probe probabilities and the prior: referee, goalkeeper, else player."""
+def in_penalty_area(xy: np.ndarray, pitch: tuple[float, float], pen_depth: float, pen_half_width: float) -> np.ndarray:
+    """True where the position lies inside the penalty-area rectangle of either goal (NaN positions are False)."""
+    length, width = pitch
+    with np.errstate(invalid="ignore"):
+        near_goal = np.minimum(xy[:, 0], length - xy[:, 0]) <= pen_depth
+        inside = (xy[:, 0] >= 0) & (xy[:, 0] <= length) & (np.abs(xy[:, 1] - width / 2) <= pen_half_width)
+    return near_goal & inside
+
+
+def assign_roles(proba: np.ndarray, fires: np.ndarray, rule: str, in_area: np.ndarray | None = None) -> np.ndarray:
+    """Final role per row from probe probabilities and the prior: referee, goalkeeper, else player.
+
+    ``prior_or_probe_in_area`` accepts a probe-only keeper call only where ``in_area`` is True.
+    """
     if rule not in KEEPER_RULES:
         raise ValueError(f"keeper_rule must be one of {KEEPER_RULES}, got {rule!r}")
     top = proba.argmax(axis=1)
-    keeper = fires | (top == CLASSES.index("goalkeeper")) if rule == "prior_or_probe" else fires
+    probe_keeper = top == CLASSES.index("goalkeeper")
+    if rule == "prior_or_probe_in_area":
+        if in_area is None:
+            raise ValueError("keeper_rule prior_or_probe_in_area needs in_area")
+        keeper = fires | (probe_keeper & in_area)
+    else:
+        keeper = fires | probe_keeper if rule == "prior_or_probe" else fires
     return np.where(top == CLASSES.index("referee"), "referee", np.where(keeper, "goalkeeper", "player"))
 
 
-def crops_of(tracks: pd.DataFrame, rows: np.ndarray, frames: pd.DataFrame, frames_root, min_side: int):
-    """Crops for ``rows`` (positional) as (crop list, positions that produced a crop)."""
+def crops_of(tracks: pd.DataFrame, rows: np.ndarray, frames: pd.DataFrame, frames_root, min_side: int,
+             edge_margin: int | None = None, min_height: int | None = None):
+    """Crops for ``rows`` (positional) as (crop list, positions that produced a crop).
+
+    ``edge_margin`` skips a box whose raw coordinates come within that many px of the frame edge (a cut-off person);
+    ``min_height`` skips boxes shorter than that. Both are off when None.
+    """
     paths = frames.set_index("sample_id")["path"]
     crops, kept = [], []
     sid = tracks["sample_id"].to_numpy()
@@ -121,6 +144,11 @@ def crops_of(tracks: pd.DataFrame, rows: np.ndarray, frames: pd.DataFrame, frame
             continue
         h, w = img.shape[:2]
         for i in rows[sid[rows] == s]:
+            if edge_margin is not None and (box[i, 0] <= edge_margin or box[i, 1] <= edge_margin
+                                            or box[i, 2] >= w - edge_margin or box[i, 3] >= h - edge_margin):
+                continue
+            if min_height is not None and box[i, 3] - box[i, 1] < min_height:
+                continue
             x1, y1, x2, y2 = max(int(box[i, 0]), 0), max(int(box[i, 1]), 0), min(int(box[i, 2]), w), min(int(box[i, 3]), h)
             if x2 - x1 >= min_side and y2 - y1 >= min_side:
                 crops.append(img[y1:y2, x1:x2].copy())
@@ -140,7 +168,8 @@ def relabel(tracks: pd.DataFrame, calib: pd.DataFrame, frames: pd.DataFrame, fra
     out["role_pipeline"] = out["role"]
     out["role_source"] = "detector"
     person = ((out["object_class"] == "person") & (out["track_id"] >= 0)).to_numpy()
-    crops, kept = crops_of(out, np.flatnonzero(person), frames, frames_root, int(s["min_side_px"]))
+    crops, kept = crops_of(out, np.flatnonzero(person), frames, frames_root, int(s["min_side_px"]),
+                           s.get("edge_margin_px"), s.get("min_height_px"))
     proba = np.full((len(out), len(CLASSES)), np.nan)
     if len(crops):
         proba[kept] = model.proba(embedder.embed(crops)[s.get("feature", "fc")])
@@ -153,7 +182,8 @@ def relabel(tracks: pd.DataFrame, calib: pd.DataFrame, frames: pd.DataFrame, fra
     fires = keeper_prior(out["sample_id"].to_numpy(), xy, scorable & ~top_ref, p_keeper, pitch,
                          float(s["penalty_depth_m"]), float(s["penalty_half_width_m"]), float(s["tie_m"]))
     new_role = np.array(out["role"], dtype=object)
-    new_role[scorable] = assign_roles(proba[scorable], fires[scorable], str(s["keeper_rule"]))
+    in_area = in_penalty_area(xy, pitch, float(s["penalty_depth_m"]), float(s["penalty_half_width_m"]))
+    new_role[scorable] = assign_roles(proba[scorable], fires[scorable], str(s["keeper_rule"]), in_area[scorable])
     changed = scorable & (new_role != out["role"].to_numpy(object))
     out["role"] = new_role
     out.loc[scorable, "role_source"] = np.where(fires, "prior", "probe")[scorable]

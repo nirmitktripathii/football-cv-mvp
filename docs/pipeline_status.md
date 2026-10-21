@@ -47,7 +47,7 @@ Status: **ACCEPTED** (in the working config), **REJECTED** (measured, not adopte
 | 10 fps sampling | RECOMMENDED, **not yet the default** | HOTA +1.4, IDF1 +1.9, IDSW -22% over 5 fps for about 1.3x cost; 15 fps adds nothing; tuned on the same windows, so a pointer |
 | Static-ball filter | ACCEPTED | drops still balls; a still ball at a corner arc would also be dropped even if detected |
 | Outlier-run marking and goalkeeper gate (`teams.outlier_runs`, `goalkeeper_gate`) | ACCEPTED | removes implausible goalkeeper tracks |
-| Non-person false positives (corner flags, camera rig) | OPEN | tracks 74, 93 (flag), 160, 83, 87 (rig) |
+| Non-person false positives (corner flags, camera rig) | OPEN, **a detector problem** | tracks 74, 93 (flag), 160, 83, 87 (rig). In the a2 evaluation window a camera on a pole at about (22 m, 48-52 m) is tracked as a person (tracks 22, 24, 27; 9 boxes) and the role probe calls it goalkeeper (p 0.51-0.99). No position rule separates it from a real keeper standing 21 m out (a3 gt24), so the fix belongs in the detector (a rig/camera hard-negative class or training negatives, as for the drone), not in the role stage |
 
 ### Teams and roles
 
@@ -62,7 +62,10 @@ Status: **ACCEPTED** (in the working config), **REJECTED** (measured, not adopte
 | SRITrack embedding role probe (logistic regression on `fc`) | Offline: PASS on referee, FAIL on goalkeeper | referee 0.977 / 0.986 recall / precision; keeper recall 0.608 (stage 1) |
 | Track-level voting + detector class (stage 1b) | REJECTED | keeper recall 0.36, precision 0.49 |
 | Pitch-position goalkeeper prior, nearest the goal line (stage 1c) | REJECTED | keeper precision 0.759 < 0.80 (a defender stood on the goal line in the a2 corner) |
-| Goal-centre distance prior + probe tie-break (stage 1d, `Q1`) | ACCEPTED **offline only** | accuracy 0.989, keeper recall 0.935 / precision 0.867, referee 0.983 / 0.978. On **ground-truth boxes**, three windows, four keeper tracks; reshaped after seeing a2. **Not yet in the pipeline**; being wired behind a flag |
+| Goal-centre distance prior + probe tie-break (stage 1d, `Q1`) | ACCEPTED **offline only** | accuracy 0.989, keeper recall 0.935 / precision 0.867, referee 0.983 / 0.978. On **ground-truth boxes**, three windows, four keeper tracks; reshaped after seeing a2. **Now wired into the pipeline behind a flag (stage 2)** |
+| Probe-only keeper must lie in a penalty area (stage 3 zone rule G) | REJECTED | removed the rig calls but also 3 of 27 boxes of a real keeper standing 17-21 m out (a3 gt24 0.778 -> 0.667, N2 per-track clause failed) |
+| Roles stage wired behind `role_probe.enabled` (stage 2, detector boxes) | ACCEPTED, default off | role accuracy 0.9886 vs 0.9284, referee recall 1.00 vs 0.03, keeper recall 0.925 vs 0.507; boxes and tracking metrics unchanged; 3 windows, in-sample prior geometry |
+| Edge and height guards on the relabel (stage 3b, `edge_margin_px` 2, `min_height_px` 20) | ACCEPTED, in-sample | removed all 11 targeted false calls (photographers, substitutes, edge fragments); extra keeper/referee calls 26 -> 11 (5 are the camera rig); keeper recall 0.932, precision 0.845, referee 0.994 / 0.982, accuracy 0.9886; 0.8% of matched boxes left unrelabelled |
 | SigLIP embeddings | NOT DONE | only after explicit go-ahead; the download size must be stated first |
 
 ### Calibration and projection

@@ -7,6 +7,8 @@ the audited ground truth. Writes artifacts/role_probe/eval_detector.json.
 """
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pandas as pd
 from scipy.optimize import linear_sum_assignment
@@ -16,7 +18,7 @@ from football_cv.evaluation import cvat, mot
 from football_cv.tracking import role_probe
 
 WINDOWS = ("a1_open_t600", "a2_corner_t2707", "a3_open_t4800")
-RUN = "inter_napoli_fb4f5p"
+RUN = os.environ.get("ROLE_RUN", "inter_napoli_fb4f5p")  # stage 3 runs inter_napoli_fb4f5q
 SRC_PER_GT = 5  # 25 fps source, 5 fps annotation
 PITCH = (105.0, 68.0)
 CLASSES = role_probe.CLASSES
@@ -172,12 +174,16 @@ def main() -> None:
                         "matched_without_usable_calibration": int(pairs["x"].isna().sum()),
                         "matched_under_8px": int(pairs["small"].sum()),
                         "role_source_counts": {k: int(v) for k, v in pairs["source"].value_counts().items()}},
-           "end_to_end": {"per_window": stats, "gt_person_boxes": int(sum(s["gt_boxes"] for s in stats.values())),
+           "end_to_end": {"per_window": stats,
+                          "unmatched_keeper_or_referee_on_pitch": int(sum(
+                              s["unmatched_pred_keeper_or_referee_on_pitch"] for s in stats.values())),
+                          "gt_person_boxes": int(sum(s["gt_boxes"] for s in stats.values())),
                           "matched": int(len(pairs))},
            "tracking": {"f5r": tracking_block(False), "p": tracking_block(True)},
            "h4_boxes_identical": all(boxes_identical(w) for w in WINDOWS),
            "h5_changed_referee_rows_carry_other": changed_referees_other()}
-    C.write_json(C.resolve("artifacts") / "role_probe" / "eval_detector.json", out)
+    name = "eval_detector.json" if RUN == "inter_napoli_fb4f5p" else f"eval_detector_{RUN}.json"
+    C.write_json(C.resolve("artifacts") / "role_probe" / name, out)
     show(out)
 
 

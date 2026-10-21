@@ -390,3 +390,151 @@ Limits that still apply: three windows, one match, four keeper tracks; probe is 
 Implementation notes: a first scorer run mis-indexed rows after `mot.drop_ignored` reset the index (accuracy 0.80, wrong); fixed
 and rerun before any number above was read. The a3 `roles` process also died once without output and was rerun with the same
 config, no code change.
+
+## Audit of the 26 unmatched keeper/referee calls (stage 2)
+
+Scope: the 26 on-pitch output boxes that matched no ground-truth box (IoU >= 0.5) and were labelled goalkeeper or
+referee after the roles stage (a1 2, a2 17, a3 7). I looked at a context crop of each and checked its best IoU with the
+audited boxes in the same frame (list: `artifacts/role_probe/audit/extra_calls.csv`, crops in the same folder).
+Visual classification by one reviewer, no second annotator: treat the sub / photographer split as likely, not certain.
+
+| Class | Boxes | Detail | Role label correct? |
+|---|---|---|---|
+| Camera rig on a pole (not a person) | 9 | a2, one fixed spot at about (22 m, 48-52 m), tracks 22/24/27, called keeper by the probe (p 0.51-0.99); outside the penalty area, so the prior never fired | No, not a person |
+| Photographer or camera operator crouched at the touchline | 4 | a1 s35/s36 (referee, goalkeeper), a3 s25/s26 (referee) | No, staff |
+| Substitute in a lime bib | 7 | a2 tracks 21 (3 rows, already referee before this stage), 43, 44, 45, 46; three are only a head at the bottom frame edge | No, the bib colour resembles the referee kit |
+| Assistant referee on the touchline | 1 | a3 s34 | Yes (the ground truth does not label them) |
+| Duplicate or poorly fitting box on a true person | 3 | a2 s4 t11: true keeper, IoU 0.57 with the GT keeper but another box won the match; a3 s39/s40: true referee, IoU 0.16 / 0.20 | Yes, box is redundant |
+| Partial person cut by the bottom frame edge | 2 | a3 s47/s48 t33, head and white shirt only, called keeper | Unverifiable, most likely wrong |
+
+Totals: 4 correct labels (1 assistant referee, 3 duplicate boxes on true keeper/referee), 13 real people with a wrong
+or unverifiable role (4 staff, 7 substitutes, 2 edge fragments), 9 non-person false positives. Before this stage the
+same count was 3 (the three substitute rows on track 21), so 23 are new: 9 rig, 4 photographers, 4 substitutes,
+1 assistant referee, 3 duplicates, 2 edge fragments.
+
+What it means:
+- The prior produced 1 of the 26 (the true keeper, a2 t11). The probe alone produced 25, and 12 of them are goalkeeper
+  calls outside what the prior accepts (the rig and the two edge fragments, plus the a1 photographer). That is the
+  `prior_or_probe` rule being too permissive away from the goal; the stage-1d warning ("the probe alone produced the
+  false keepers") applies here too.
+- None of the 26 touches a scored box, so H1-H6 are unaffected. They would corrupt anything counted per label
+  (keeper tracks, referee count, per-role distance).
+- Possible fixes, **not applied** (each needs criteria declared first, and tuning them on these same windows would be
+  in-sample): require a probe-only keeper call to lie within a distance of a goal; ignore boxes touching the frame
+  edge or under a minimum height for the role relabel; suppress the camera rig as a non-person class or by its fixed
+  position; NMS between a role box and a box it overlaps. Note that `prior_only` (Q0) removes the 12 probe-only
+  goalkeeper calls but costs keeper recall (0.904 vs 0.925; a3 gt24 0.667 vs 0.778).
+
+## Stage 3: zone and edge guards on the role relabel (criteria declared before running)
+
+Motivation: the audit above. 24 of 26 extra keeper/referee calls came from the probe alone, not the position prior.
+Disclosure: the thresholds below were chosen after seeing those 26 boxes (rig at 21-22 m from a goal line, 17-19 px
+photographers, substitutes cut by the bottom frame edge). They are fixed now at the single values written here and
+are **not** swept; a failure is reported as a failure. The rig, photographers and substitutes are all in these three
+windows, so this test cannot show that the rules generalise; it only shows what they cost on the scored boxes.
+
+Rules (new config keys, all off by default, run as `keeper_rule: prior_or_probe_in_area`):
+- G, zone: a goalkeeper call that rests on the probe alone (prior did not fire) is accepted only when the box lies
+  inside a penalty-area rectangle (same `penalty_depth_m` / `penalty_half_width_m` as the prior, no new number).
+  Otherwise the row is a player.
+- E, edge: a person box whose raw detector box touches the frame edge (`edge_margin_px: 2`) is not relabelled and keeps
+  its detector role.
+- S, short: a person box under `min_height_px: 20` is not relabelled and keeps its detector role.
+Referee calls outside E/S are unchanged (no zone rule on referees: they legitimately roam the pitch).
+
+Test: copy the three stage 2 run dirs, rerun only the `roles` stage with these keys (same leave-one-window-out probes,
+same tracks, same calibration), score with `scripts/eval_roles_detector.py` on detector boxes, matched, on pitch.
+Pass only if **all** hold (pooled over the three windows, 3,240 pairs):
+- N1 (the point): unmatched on-pitch keeper/referee calls <= 10 (stage 2: 26; the 4 correct ones in the audit may stay).
+- N2 (keeper): recall >= 0.90 (stage 2: 0.925) and precision >= 0.844 (stage 2 value, no loss); no single keeper track
+  loses more than 0.05 recall against stage 2 (a1 gt12 1.00, a2 gt15 0.933, a3 gt18 0.913, a3 gt24 0.778).
+- N3 (referee): recall >= 0.98 (stage 2: 1.000) and precision >= 0.970 (stage 2: 0.976).
+- N4 (overall): role accuracy >= 0.980 (stage 2: 0.9886).
+- N5 (unchanged): boxes and ids identical to stage 2 (H4), HOTA/IDF1/IDSW identical, changed-to-referee rows still carry
+  team "other" (H5).
+- N6 (cost, reported): matched boxes left unrelabelled by E or S, as a share of matched pairs; the pass line is <= 3%.
+If N1 passes but N2-N4 fail, the guards are rejected as written, and the next step is a different rule, not a looser
+threshold on these windows.
+
+### Stage 3 result: guards REJECTED as declared (N2 per-track clause fails)
+
+Run: `configs/inter_napoli_fb4_f5q_a{1,2,3}.yaml` on copies of the stage 2 run dirs (`inter_napoli_fb4f5q_<window>`),
+`scripts/eval_roles_detector.py` with `ROLE_RUN=inter_napoli_fb4f5q`, scored on detector boxes, matched, on pitch
+(3,240 pairs). Thresholds were not changed after the run.
+
+| Criterion | Declared | Stage 2 | Stage 3 | |
+|---|---|---|---|---|
+| N1 unmatched on-pitch keeper/referee calls | <= 10 | 26 | **6** | pass |
+| N2 keeper recall / precision | >= 0.90 / >= 0.844 | 0.925 / 0.844 | 0.911 / 0.930 | pass |
+| N2 per keeper track, drop <= 0.05 | a1 gt12 1.00, a2 gt15 0.933, a3 gt18 0.913, a3 gt24 0.778 | | 1.00, 0.933, 0.957, **0.667** | **FAIL** (a3 gt24 -0.111) |
+| N3 referee recall / precision | >= 0.98 / >= 0.970 | 1.000 / 0.976 | 0.994 / 0.982 | pass |
+| N4 role accuracy | >= 0.980 | 0.9886 | 0.9923 | pass |
+| N5 boxes, HOTA, IDF1, IDSW, referee team | identical | 0.8574, 0.8599, 89 | identical, 0 referee rows without "other" | pass |
+| N6 matched boxes not relabelled (E or S) | <= 3% | 2 of 3,298 | 26 of 3,298 (0.8%) | pass |
+
+Why it fails: a3 gt24 is a real keeper standing 17-21 m from the right goal line (pitch x 84-88 m, y 31 m), outside
+the 16.5 m penalty rectangle. Nine of its boxes are probe-only keeper calls; the zone rule turns six of them back into
+players (21 -> 18 of 27). The camera rig sits 22-26 m from the goal line, so no distance or zone rule separates the rig
+from this keeper: the rig needs its own treatment (non-person class or fixed-position suppression), not a tighter
+goal-distance gate. The prior-only ablation (Q0) also scores 0.667 on that track.
+
+What the guards did get right: the 6 remaining extra calls are all either already present before this stage (3 rows of
+the substitute on a2 track 21, referee from the detector) or correctly labelled (the a2 keeper duplicate, the a3
+assistant referee, one duplicate box on the a3 referee). No false camera-rig, photographer or substitute call remains
+that the probe introduced, and aggregate accuracy rose from 0.9886 to 0.9923. That is in-sample: the thresholds were
+set after viewing these boxes.
+
+Decision: defaults stay as they are (guards off, `keeper_rule: prior_or_probe`). Options for the next step, each needing
+new criteria: (a) accept the guards but relax N2's per-track clause (a decision about the criterion after seeing the
+result, so it would need a held-out window to count); (b) keep only the edge/height rules (E, S), which fix the
+substitutes, photographers and edge fragments, and handle the rig separately; (c) keep prior_or_probe and treat the rig
+as a detector problem.
+
+## Stage 3b: edge and height guards only (criteria declared before running)
+
+Decision after stage 3: drop the zone rule G (it removed real keeper boxes for a3 gt24, who stood 17-21 m out). Keep
+E (`edge_margin_px: 2`) and S (`min_height_px: 20`) with `keeper_rule: prior_or_probe` unchanged. The camera rig is
+**not** addressed here: it is a detector problem (a person class fires on a non-person), see `pipeline_status.md`.
+Disclosure: the stage 3 run already contained E and S together with G, so their combined effect on the scored boxes
+is partly known (26 of 3,298 matched boxes unrelabelled, mostly by E/S). The thresholds are the same single values as
+before, not swept. This run only separates E/S from G.
+
+Test: copies of the stage 2 run dirs (`inter_napoli_fb4f5s_<window>`), roles stage only, same leave-one-window-out probes,
+scored on detector boxes, matched, on pitch (3,240 pairs). Pass only if **all** hold:
+- M1 (the point): of the 23 new extra calls in the audit, these 11 are gone: photographers a1 s35/s36 and a3 s25/s26,
+  substitutes a2 s11 t43, s14 t44, s15 t45, s16 t46, edge fragments a3 s47/s48 t33, short box a3 s39 t34; and total
+  unmatched on-pitch keeper/referee calls <= 15 (26 minus those 11). The rig calls (9) are expected to remain.
+- M2 (keeper): recall >= 0.90 and precision >= 0.844 (stage 2: 0.925 / 0.844); per keeper track recall within 0.05 of
+  stage 2 (a1 gt12 1.00, a2 gt15 0.933, a3 gt18 0.913, a3 gt24 0.778).
+- M3 (referee): recall >= 0.98 and precision >= 0.970 (stage 2: 1.000 / 0.976).
+- M4: role accuracy >= 0.985 (stage 2: 0.9886).
+- M5: boxes and ids identical, HOTA/IDF1/IDSW identical to stage 2, changed-to-referee rows carry team "other".
+- M6 (cost, reported): matched boxes not relabelled, <= 3% of matched pairs.
+A fail is reported as a fail; no threshold is changed afterwards.
+
+### Stage 3b result: edge and height guards PASS (all six criteria)
+
+Run: `configs/inter_napoli_fb4_f5s_a{1,2,3}.yaml` (edge_margin_px 2, min_height_px 20, `keeper_rule: prior_or_probe`) on
+copies of the stage 2 run dirs; scored with `ROLE_RUN=inter_napoli_fb4f5s scripts/eval_roles_detector.py`
+(`artifacts/role_probe/eval_detector_inter_napoli_fb4f5s.json`). Thresholds were not changed after the run.
+
+| Criterion | Declared | Stage 2 | Stage 3b | |
+|---|---|---|---|---|
+| M1 the 11 targeted calls gone; total unmatched on-pitch keeper/referee calls | all 11 gone; <= 15 | 26 | all 11 gone; **11** | pass |
+| M2 keeper recall / precision | >= 0.90 / >= 0.844 | 0.925 / 0.844 | 0.932 / 0.845 | pass |
+| M2 per keeper track (within 0.05 of stage 2) | | 1.00, 0.933, 0.913, 0.778 | 1.00, 0.933, 0.957, 0.778 | pass |
+| M3 referee recall / precision | >= 0.98 / >= 0.970 | 1.000 / 0.976 | 0.994 / 0.982 | pass |
+| M4 role accuracy | >= 0.985 | 0.9886 | 0.9886 | pass |
+| M5 boxes, HOTA 0.8574, IDF1 0.8599, IDSW 89, referee rows carry "other" | identical | | identical, 0 without "other" | pass |
+| M6 matched boxes not relabelled | <= 3% | 2 | 26 of 3,298 (0.8%) | pass |
+
+The remaining 11 unmatched on-pitch calls: 3 already present before this stage (substitute on a2 track 21, detector
+referee), 3 with a correct label (a2 keeper duplicate box, a3 assistant referee, a3 duplicate box on the referee) and
+**5 camera-rig boxes** (a2 tracks 24, 22, 27; the other 4 rig boxes are under 20 px high and are now left as players).
+The rig is a detector problem and stays open. The stage 3 variant that added the zone rule G is rejected (see above).
+
+Caveats: in-sample (the two numbers were set after viewing these boxes), three windows of one match, no held-out
+window. The guards drop role probing for boxes that touch the frame edge or are under 20 px tall: they keep their
+detector role, so a referee or keeper at the frame edge or far away is never corrected. 26 matched boxes (0.8%) are
+in that state here, and the 3% line is the limit. Decision: defaults for `role_probe.edge_margin_px` and `min_height_px`
+set to 2 and 20 (the stage stays off unless `role_probe.enabled`).

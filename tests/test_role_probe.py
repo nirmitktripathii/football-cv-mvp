@@ -137,6 +137,37 @@ def test_relabel_demoted_keeper_takes_kit_team_and_referee_becomes_other(tmp_pat
     assert out["team_id"].tolist() == ["away", "home"]
 
 
+def test_in_penalty_area_covers_both_ends_and_rejects_nan():
+    xy = np.array([[10.0, 34.0], [95.0, 34.0], [22.0, 48.0], [10.0, 60.0], [50.0, 34.0], [np.nan, np.nan]])
+    assert rp.in_penalty_area(xy, PITCH, 16.5, 20.16).tolist() == [True, True, False, False, False, False]
+
+
+def test_probe_only_keeper_needs_the_penalty_area_under_the_in_area_rule():
+    p = np.array([[0.1, 0.8, 0.1], [0.1, 0.8, 0.1], [0.1, 0.8, 0.1]])
+    fires = np.array([False, False, True])
+    in_area = np.array([True, False, False])
+    out = rp.assign_roles(p, fires, "prior_or_probe_in_area", in_area)
+    assert out.tolist() == ["goalkeeper", "player", "goalkeeper"]  # prior still fires outside the area mask
+    assert rp.assign_roles(p, fires, "prior_or_probe").tolist() == ["goalkeeper"] * 3
+    with pytest.raises(ValueError):
+        rp.assign_roles(p, fires, "prior_or_probe_in_area")
+
+
+def test_relabel_skips_edge_touching_and_short_boxes_when_enabled(tmp_path):
+    frames = _frame_on_disk(tmp_path, grey=128)
+    tracks = _tracks([
+        [0, 1, "person", "player", "home", 10, 10, 40, 60, 50.0, 34.0],    # fine
+        [0, 2, "person", "player", "home", 10, 150, 40, 200, 50.0, 34.0],  # touches the bottom edge (h=200)
+        [0, 3, "person", "player", "home", 60, 10, 90, 25, 50.0, 34.0],    # 15 px tall
+    ])
+    s = {**SETTINGS, "edge_margin_px": 2, "min_height_px": 20}
+    out, report = rp.relabel(tracks, _identity_calibration([0]), frames, tmp_path, _model(), _Embedder(), {}, s, PITCH)
+    assert out["role_source"].tolist() == ["probe", "detector", "detector"]
+    assert report["no_crop_rows"] == 2
+    off, _ = rp.relabel(tracks, _identity_calibration([0]), frames, tmp_path, _model(), _Embedder(), {}, SETTINGS, PITCH)
+    assert off["role_source"].tolist() == ["probe"] * 3
+
+
 def test_roles_stage_is_a_no_op_when_disabled(tmp_path):
     cfg = {"role_probe": {"enabled": False}, "paths": {"processed_dir": str(tmp_path)}, "clip": {"id": "x"}}
     assert pipeline.stage_roles(cfg) is None

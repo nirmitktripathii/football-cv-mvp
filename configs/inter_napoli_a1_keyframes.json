@@ -1,0 +1,81 @@
+{
+ "_about": "Manual pitch-landmark clicks for evaluation window a1_open_t600 (10 s, 51 samples at 5 fps). Copied from sample 0 (t=600 s) of configs/poc_segment_keyframes.json, which is the same video frame; used for the role probe position prior (docs/role_probe.md stage 2). Roles were never consulted.",
+ "keyframes": [
+  {
+   "sample_id": 0,
+   "note": "t=600 s, right penalty area",
+   "points": [
+    {
+     "landmark": "corner_tr",
+     "image": [
+      803.4,
+      113.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      655.0,
+      190.0
+     ]
+    },
+    {
+     "landmark": "pen_r_arc_bottom",
+     "image": [
+      864.8,
+      339.3
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      1002.9,
+      435.8
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_top",
+     "image": [
+      903.0,
+      213.0
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_bottom",
+     "image": [
+      1081.6,
+      313.7
+     ]
+    },
+    {
+     "landmark": "ga_r_goalline_bottom",
+     "image": [
+      1172.9,
+      295.6
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      700.0,
+      702.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      900.0,
+      656.5
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1100.0,
+      611.0
+     ]
+    }
+   ]
+  }
+ ]
+}

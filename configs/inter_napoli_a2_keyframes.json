@@ -1,0 +1,115 @@
+{
+ "_about": "Manual pitch-landmark clicks for evaluation window a2_corner_t2707 (10 s, 51 samples at 5 fps, clip inter_napoli_fb4f5_a2_corner_t2707). Read by eye from annotate_keyframe renders (grid + Hough candidates) and 2.2x crops; roughly 3 px of click error. Camera on the near touchline; near touchline y=0, left goal x=0. Written for the goalkeeper position prior (docs/role_probe.md stage 1c); roles were never consulted.",
+ "keyframes": [
+  {
+   "sample_id": 0,
+   "note": "t=2707 s, left penalty area, corner kick",
+   "points": [
+    {
+     "landmark": "corner_tl",
+     "image": [
+      615,
+      138
+     ]
+    },
+    {
+     "landmark": "pen_l_goalline_top",
+     "image": [
+      500,
+      202
+     ]
+    },
+    {
+     "landmark": "ga_l_goalline_top",
+     "image": [
+      392,
+      263
+     ]
+    },
+    {
+     "landmark": "ga_l_goalline_bottom",
+     "image": [
+      159,
+      393
+     ]
+    },
+    {
+     "landmark": "ga_l_corner_top",
+     "image": [
+      498,
+      276
+     ]
+    },
+    {
+     "landmark": "ga_l_corner_bottom",
+     "image": [
+      281,
+      412
+     ]
+    },
+    {
+     "landmark": "pen_l_corner_top",
+     "image": [
+      818,
+      235
+     ]
+    },
+    {
+     "landmark": "pen_l_arc_bottom",
+     "image": [
+      565,
+      436
+     ]
+    },
+    {
+     "landmark": "pen_l_corner_bottom",
+     "image": [
+      397,
+      571
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 50,
+   "note": "t=2717 s",
+   "points": [
+    {
+     "landmark": "pen_l_corner_bottom",
+     "image": [
+      385,
+      545
+     ]
+    },
+    {
+     "landmark": "pen_l_corner_top",
+     "image": [
+      803,
+      208
+     ]
+    },
+    {
+     "landmark": "pen_l_arc_bottom",
+     "image": [
+      554,
+      409
+     ]
+    },
+    {
+     "landmark": "ga_l_corner_bottom",
+     "image": [
+      268,
+      386
+     ]
+    },
+    {
+     "landmark": "ga_l_corner_top",
+     "image": [
+      484,
+      249
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,157 @@
+{
+ "_about": "Manual pitch-landmark clicks for evaluation window a3_open_t4800 (10 s, 51 samples at 5 fps, clip inter_napoli_fb4f5_a3_open_t4800). Read by eye from annotate_keyframe renders (grid + Hough candidates) and 2.2x crops; roughly 3 px of click error. Camera on the near touchline; near touchline y=0, left goal x=0. Written for the goalkeeper position prior (docs/role_probe.md stage 1c); roles were never consulted.",
+ "keyframes": [
+  {
+   "sample_id": 0,
+   "note": "t=4800 s, halfway line and left penalty area",
+   "points": [
+    {
+     "landmark": "halfway_bottom",
+     "image": [
+      849,
+      661
+     ]
+    },
+    {
+     "landmark": "circle_bottom",
+     "image": [
+      844,
+      386
+     ]
+    },
+    {
+     "landmark": "halfway_top",
+     "image": [
+      840,
+      166
+     ]
+    },
+    {
+     "landmark": "corner_tl",
+     "image": [
+      202,
+      161
+     ]
+    },
+    {
+     "landmark": "pen_l_goalline_top",
+     "image": [
+      135,
+      208
+     ]
+    },
+    {
+     "landmark": "pen_l_corner_top",
+     "image": [
+      342,
+      213
+     ]
+    },
+    {
+     "landmark": "pen_l_corner_bottom",
+     "image": [
+      91,
+      459
+     ]
+    },
+    {
+     "landmark": "pen_l_arc_top",
+     "image": [
+      286,
+      268
+     ]
+    },
+    {
+     "landmark": "pen_l_arc_bottom",
+     "image": [
+      198,
+      353
+     ]
+    },
+    {
+     "landmark": "ga_l_corner_top",
+     "image": [
+      134,
+      256
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 50,
+   "note": "t=4810 s, halfway line and right penalty area",
+   "points": [
+    {
+     "landmark": "halfway_top",
+     "image": [
+      256,
+      155
+     ]
+    },
+    {
+     "landmark": "halfway_bottom",
+     "image": [
+      355,
+      690
+     ]
+    },
+    {
+     "landmark": "corner_tr",
+     "image": [
+      941,
+      85
+     ]
+    },
+    {
+     "landmark": "pen_r_goalline_top",
+     "image": [
+      1021,
+      129
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      805,
+      153
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      1112,
+      383
+     ]
+    },
+    {
+     "landmark": "pen_r_arc_top",
+     "image": [
+      873,
+      208
+     ]
+    },
+    {
+     "landmark": "pen_r_arc_bottom",
+     "image": [
+      982,
+      287
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_top",
+     "image": [
+      1029,
+      180
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_bottom",
+     "image": [
+      1188,
+      275
+     ]
+    }
+   ]
+  }
+ ]
+}

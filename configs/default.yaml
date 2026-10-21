@@ -109,6 +109,12 @@ offpitch:
   people_outside_m: 2.0
   people_min_rows: 3
   ball_outside_m: 2.0
+  # Corner flags detected as people: a still person track on a pitch corner (docs/corner_flags.md). Off by default.
+  corner_flags:
+    enabled: false
+    radius_m: 2.5     # median foot distance to the nearest corner
+    still_m: 0.6      # max std of x and of y
+    min_rows: 2
 
 role_probe:
   # Stage "roles" (after calibrate, before identity): referee and goalkeeper labels from SRITrack crop embeddings plus a

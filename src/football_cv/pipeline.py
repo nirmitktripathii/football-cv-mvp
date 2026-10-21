@@ -222,7 +222,12 @@ def stage_calibrate(cfg: dict) -> None:
         proj, dropped = offpitch.drop_off_pitch_people(
             proj, length, width, float(off["people_outside_m"]), int(off["people_min_rows"]))
         proj = offpitch.reject_unplayable_balls(proj, length, width, float(off["ball_outside_m"]))
-        n_off = {"people_tracks": len(dropped), "rows": before - len(proj)}
+        flags = off.get("corner_flags", {})
+        flag_ids: list[int] = []
+        if flags.get("enabled", False):
+            proj, flag_ids = offpitch.drop_corner_flags(
+                proj, length, width, float(flags["radius_m"]), float(flags["still_m"]), int(flags["min_rows"]))
+        n_off = {"people_tracks": len(dropped), "corner_flag_tracks": flag_ids, "rows": before - len(proj)}
     proj.to_parquet(out / "tracks_projected.parquet", index=False)
     t = cfg["trajectories"]
     traj = clean.clean_trajectories(proj, float(t["max_speed_mps"]), int(t["min_track_points"]))

@@ -1,0 +1,15 @@
+# Experiment: sample at 10.0 fps instead of 5, same detector and tracker as inter_napoli_fb4. Frame-count settings are
+# scaled to the same wall-clock time as at 5 fps (confirmation 0.4 s, static-ball test 0.6 s per sample window);
+# scored on the 5 fps ground truth by scripts/eval_tracking_rate.py (docs/poc_replica.md, "Sampling rate").
+extends: inter_napoli_4class.yaml
+
+clip:
+  id: inter_napoli_fb4f10   # windows run as inter_napoli_fb4f10_<window>
+
+sampling:
+  fps: 10.0
+
+tracking:
+  minimum_consecutive_frames: 4
+  ball:
+    static_min_frames: 6

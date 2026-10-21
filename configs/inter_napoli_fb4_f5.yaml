@@ -1,0 +1,15 @@
+# Control for the sampling-rate sweep: the current 5 fps setup (buffered matching 0.6 + recovery) re-run under its own
+# clip id so the sweep compares like with like without overwriting inter_napoli_fb4.
+extends: inter_napoli_4class.yaml
+
+clip:
+  id: inter_napoli_fb4f5   # windows run as inter_napoli_fb4f5_<window>
+
+# Pinned at the 5 fps these results were produced at (docs/poc_replica.md); the working default is now 10 fps.
+sampling:
+  fps: 5.0
+
+tracking:
+  minimum_consecutive_frames: 2
+  ball:
+    static_min_frames: 3

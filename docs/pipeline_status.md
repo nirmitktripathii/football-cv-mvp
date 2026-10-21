@@ -31,6 +31,7 @@ Status: **ACCEPTED** (in the working config), **REJECTED** (measured, not adopte
 | Input size 1920 / 2560 for the ball | REJECTED | Ball top-1 20% / 10% vs 25% at 1280 |
 | Horizontal-flip test-time augmentation for the ball | REJECTED | No gain (0.380 vs 0.416 top-1) |
 | Hybrid: 4-class people + YOLOX ball (`detection.ball_detector`) | ACCEPTED where used | Ball hits 29 -> 53 of 137 at the same HOTA 0.857 / IDF1 0.860; costs a second pass over every frame |
+| Rig-as-person hard negatives (`v3_rig`, includes the drone patches) | OPEN, **dataset built, not trained** | 13 rig person-box patches from one 13 s episode (PoC 234-299) x 5 added to the drone set; notebook and zip ready; criteria R1-R3 declared (`finetune_4class.md`, "Rig as a person"). Stage-1 baseline fails R1 (13 of 17 a2 frames) and R2 (11 of 23) |
 | Drone hard negatives (stage-3 training) | OPEN | Dataset built (15 patches, four hover episodes, correlated); the model is **not scored**; criteria D1-D6 declared |
 | Ball detection overall | OPEN | The detector scores the true ball below 0.001 in 40% of frames; slow or still balls and balls at feet are missed; window a2 (ball at the corner arc under the taker) scores 0 for every model |
 

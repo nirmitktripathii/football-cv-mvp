@@ -45,9 +45,10 @@ Status: **ACCEPTED** (in the working config), **REJECTED** (measured, not adopte
 | `recover` without the buffer | REJECTED | IDSW 127 -> 361 |
 | Buffer capped by distance to the nearest player | REJECTED | a2 HOTA up (0.796 -> 0.789-0.805) but a1 IDF1 down to 0.79-0.83 |
 | Tracking at 25 fps (confirmation 10 frames) | Not adopted | IDF1 0.837, below 0.862 from the buffer at 5 fps; 5x detection cost |
-| 10 fps sampling | RECOMMENDED, **not yet the default** | HOTA +1.4, IDF1 +1.9, IDSW -22% over 5 fps for about 1.3x cost; 15 fps adds nothing; tuned on the same windows, so a pointer |
+| 10 fps sampling | ACCEPTED, **the default since 2026-10-22** (`inter_napoli_4class.yaml`; 5 fps chains pin 5 fps) | HOTA +1.4, IDF1 +1.9, IDSW -22% over 5 fps for about 1.3x cost; 15 fps adds nothing; tuned on the same windows, so a pointer; identity linker, calibration drift and replica speeds untested at 10 fps |
 | Static-ball filter | ACCEPTED | drops still balls; a still ball at a corner arc would also be dropped even if detected |
 | Outlier-run marking and goalkeeper gate (`teams.outlier_runs`, `goalkeeper_gate`) | ACCEPTED | removes implausible goalkeeper tracks |
+| Corner-flag exclusion by position + stillness (`offpitch.corner_flags`) | REJECTED, off | Found all 4 flags but also dropped the referee (23 rows, labelled player) and a waiting corner taker (2 GT boxes); fails F2 and F3 (`corner_flags.md`). Flags need detector hard negatives |
 | Non-person false positives (corner flags, camera rig) | OPEN, **a detector problem** | tracks 74, 93 (flag), 160, 83, 87 (rig). In the a2 evaluation window a camera on a pole at about (22 m, 48-52 m) is tracked as a person (tracks 22, 24, 27; 9 boxes) and the role probe calls it goalkeeper (p 0.51-0.99). No position rule separates it from a real keeper standing 21 m out (a3 gt24), so the fix belongs in the detector (a rig/camera hard-negative class or training negatives, as for the drone), not in the role stage |
 
 ### Teams and roles

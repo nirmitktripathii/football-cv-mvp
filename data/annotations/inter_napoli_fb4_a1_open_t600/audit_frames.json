@@ -1,0 +1,27 @@
+{
+ "crowded": [
+  24,
+  26,
+  29,
+  31,
+  32,
+  33,
+  36,
+  37,
+  38,
+  45
+ ],
+ "random": [
+  4,
+  7,
+  8,
+  13,
+  16,
+  25,
+  34,
+  39,
+  40,
+  46
+ ],
+ "note": "crowded = scrum near the right goal (overlapping boxes, hidden players); random = seed 1"
+}

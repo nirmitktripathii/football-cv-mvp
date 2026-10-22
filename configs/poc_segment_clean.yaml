@@ -1,0 +1,13 @@
+# poc_segment_yxball plus per-row team smoothing and the off-pitch people / unplayable-ball filters.
+# Separate clip id so poc_seg1rb stays as it was; its detections, shots and motion are copied, not recomputed.
+extends: poc_segment_yxball.yaml
+
+clip:
+  id: poc_seg1rc
+
+teams:
+  smoothing:
+    enabled: true
+
+offpitch:
+  enabled: true

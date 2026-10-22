@@ -1,0 +1,24 @@
+# Inter vs Napoli with the YOLOX-m 4-class fine-tune (ball, player, goalkeeper, referee).
+# Checkpoint and YOLOX checkout stay local (data/ is partly ignored); see docs/finetune_4class.md.
+# The scored checkpoint was fixed before any pipeline result was seen: best_ckpt.pth (best COCO AP on the validation
+# windows, epoch 34 of 60).
+extends: inter_napoli_4class.yaml
+
+clip:
+  id: inter_napoli_yx4   # windows run as inter_napoli_yx4_<window>, beside inter_napoli_ (COCO) and inter_napoli_fb4_
+
+detection:
+  backend: yolox
+  model: data/models/yolox_m_football4/best_ckpt.pth
+  yolox_repo: data/external/YOLOX    # git checkout at 6ddff4824372906469a7fae2dc3206c7aa4bbaee (checked on load)
+  test_size: [704, 1280]             # (h, w), the training input size
+  half: false
+
+# Pinned at the 5 fps these results were produced at (docs/poc_replica.md); the working default is now 10 fps.
+sampling:
+  fps: 5.0
+
+tracking:
+  minimum_consecutive_frames: 2
+  ball:
+    static_min_frames: 3

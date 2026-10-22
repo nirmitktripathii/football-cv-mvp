@@ -22,11 +22,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from football_cv.reconstruction.motion_models import MAX_SPEED, SIGMA_ACCEL, SIGMA_MEAS
+from football_cv.reconstruction.motion_models import MAX_SPEED, SIGMA_ACCEL, SIGMA_MEAS, _filter_axis
 
+KALMAN_FIELDS = ("x", "y", "vx", "vy", "pp", "pv", "vv")   # per tracklet end: k1* = last sample, k0* = first (reversed time)
 CHI2_99_2D = 9.21
 LINKABLE_TEAMS = ("home", "away")
-VELOCITY_FIT_S = 1.0         # window used to estimate a tracklet's entry / exit velocity
+UNDECIDED = ("unknown", "uncertain")
+MARGIN_CAP = 10.0            # nats; a link with no rival at all is reported as this sure
+VELOCITY_FIT_S = 1.0        # window used to estimate a tracklet's entry / exit velocity
 
 DEFAULTS = {
     "max_gap_s": 6.0,
@@ -44,7 +47,8 @@ DEFAULTS = {
 }
 
 TRACKLET_COLUMNS = ["track_id", "team_id", "team_status", "shot_id", "t0", "t1", "x0", "y0", "x1", "y1",
-                    "vx0", "vy0", "vx1", "vy1", "edge0", "edge1", "n"]
+                    "vx0", "vy0", "vx1", "vy1", "edge0", "edge1", "n",
+                    *[f"k{i}{c}" for i in (1, 0) for c in KALMAN_FIELDS]]
 LINK_COLUMNS = ["pred_track_id", "succ_track_id", "gap_s", "cost", "false_matches", "margin", "status"]
 
 
@@ -63,6 +67,24 @@ def _end_velocity(t: np.ndarray, xy: np.ndarray, at_end: bool) -> np.ndarray:
     return v if speed <= MAX_SPEED else v * (MAX_SPEED / speed)
 
 
+def _kalman_end(t: np.ndarray, xy: np.ndarray) -> tuple:
+    """Constant-velocity Kalman filter over a whole tracklet; state at its last sample.
+
+    Returns ``(x, y, vx, vy, pos_var, pos_vel_cov, vel_var)``, variances averaged over the two axes. Called on
+    time-reversed samples it gives the state at the *first* sample with the velocity in reversed time, which is
+    what extrapolating backwards in time needs. Velocity is speed-capped like ``_end_velocity``.
+    """
+    seen = np.ones(len(t), bool)
+    pos, vel, cov = np.zeros(2), np.zeros(2), np.zeros((2, 2, 2))
+    for ax in (0, 1):
+        _, _, xf, pf, _ = _filter_axis(t, xy[:, ax], seen, SIGMA_ACCEL, SIGMA_MEAS)
+        pos[ax], vel[ax], cov[ax] = xf[-1, 0], xf[-1, 1], pf[-1]
+    speed = float(np.linalg.norm(vel))
+    if speed > MAX_SPEED:
+        vel = vel * (MAX_SPEED / speed)
+    return (*pos, *vel, cov[:, 0, 0].mean(), cov[:, 0, 1].mean(), cov[:, 1, 1].mean())
+
+
 def tracklet_summary(traj: pd.DataFrame, min_samples: int = DEFAULTS["min_samples"]) -> pd.DataFrame:
     """One row per (track, shot): endpoints, entry / exit velocity, team, from observed positions.
 
@@ -77,7 +99,9 @@ def tracklet_summary(traj: pd.DataFrame, min_samples: int = DEFAULTS["min_sample
             continue
         t, xy = g["timestamp_s"].to_numpy(float), g[["x_s", "y_s"]].to_numpy(float)
         v0, v1 = _end_velocity(t, xy, False), _end_velocity(t, xy, True)
+        k1, k0 = _kalman_end(t, xy), _kalman_end(-t[::-1], xy[::-1])
         rows.append({
+            **{f"k{i}{c}": v for i, k in ((1, k1), (0, k0)) for c, v in zip(KALMAN_FIELDS, k)},
             "track_id": tid, "team_id": g["team_id"].iloc[0],
             "team_status": g["team_status"].iloc[0] if "team_status" in g else "confident",
             "shot_id": shot, "t0": t[0], "t1": t[-1], "x0": xy[0, 0], "y0": xy[0, 1], "x1": xy[-1, 0],
@@ -104,25 +128,52 @@ def _appearance_z(pred: pd.Series, succ: pd.Series, app: pd.DataFrame, s: dict) 
     return dist / spread
 
 
-def candidate_pairs(trk: pd.DataFrame, s: dict, appearance: pd.DataFrame | None = None) -> pd.DataFrame:
-    """All plausible (pred, succ) pairs with their cost; the cost is the mean of the two chi-square terms."""
+def candidate_pairs(trk: pd.DataFrame, s: dict, appearance: pd.DataFrame | None = None, reid=None) -> pd.DataFrame:
+    """All plausible (pred, succ) pairs with their cost; the cost is the mean of the two chi-square terms.
+
+    ``reid`` is ``(embeddings, distance_model)`` from ``tracking.reid_link``; it adds a bounded log-likelihood-ratio
+    term (never a veto) for pairs where both tracks have an embedding.
+    """
     a_idx, b_idx = np.meshgrid(np.arange(len(trk)), np.arange(len(trk)), indexing="ij")
     A, B = trk.iloc[a_idx.ravel()].reset_index(drop=True), trk.iloc[b_idx.ravel()].reset_index(drop=True)
     gap = (B["t0"] - A["t1"]).to_numpy(float)
     ok = (A["shot_id"] == B["shot_id"]) & (A["track_id"] != B["track_id"]) & (gap > 0) & (gap <= s["max_gap_s"])
-    ok &= (A["team_id"] == B["team_id"]) & A["team_id"].isin(LINKABLE_TEAMS)
+    same_team = (A["team_id"] == B["team_id"]) & A["team_id"].isin(LINKABLE_TEAMS)
     if s["require_confident_team"]:
-        ok &= (A["team_status"] == "confident") & (B["team_status"] == "confident")
+        same_team &= (A["team_status"] == "confident") & (B["team_status"] == "confident")
+    open_team = pd.Series(False, index=A.index)
+    if s.get("allow_unknown_team", False):
+        # a pair with a team-undecided end (unknown / uncertain) may link on position, kit colour and Re-ID alone;
+        # referees ("other") never link, and two confident ends of different teams never do either
+        undecided = A["team_status"].isin(UNDECIDED) | B["team_status"].isin(UNDECIDED)
+        referee = (A["team_status"] == "other") | (B["team_status"] == "other")
+        open_team = undecided & ~referee & ~same_team
+    ok &= same_team | open_team
     if s["exclude_edge_breaks"]:
         ok &= ~(A["edge1"].astype(bool) | B["edge0"].astype(bool))
     ok = ok.to_numpy()
+    open_team = open_team.to_numpy()[ok]
     A, B, gap = A[ok].reset_index(drop=True), B[ok].reset_index(drop=True), gap[ok]
     if not len(A):
         return pd.DataFrame(columns=["pred", "succ", "gap_s", "cost", "false_matches"])
-    var = _prediction_var(gap, s)
-    fwd = np.c_[B["x0"] - (A["x1"] + A["vx1"] * gap), B["y0"] - (A["y1"] + A["vy1"] * gap)]
-    bwd = np.c_[A["x1"] - (B["x0"] - B["vx0"] * gap), A["y1"] - (B["y0"] - B["vy0"] * gap)]
-    z_f, z_b = (fwd**2).sum(1) / var, (bwd**2).sum(1) / var
+    if s.get("kalman_ends", False):
+        # Kalman end states: the filtered position and velocity of each end carry their own covariance, so a short or
+        # jittery tracklet gets a wide gate and a long smooth one a tight gate, instead of one fixed velocity spread.
+        # Backward uses the first-sample state in reversed time, so "- v * gap" becomes "+ k0v * gap".
+        fwd = np.c_[B["k0x"] - (A["k1x"] + A["k1vx"] * gap), B["k0y"] - (A["k1y"] + A["k1vy"] * gap)]
+        bwd = np.c_[A["k1x"] - (B["k0x"] + B["k0vx"] * gap), A["k1y"] - (B["k0y"] + B["k0vy"] * gap)]
+        accel = SIGMA_ACCEL**2 * gap**3 / 3.0
+        cal = s["calibration_sigma_m"] ** 2
+        var_f = cal + A["k1pp"] + 2 * gap * A["k1pv"] + gap**2 * A["k1vv"] + B["k0pp"] + accel
+        var_b = cal + B["k0pp"] + 2 * gap * B["k0pv"] + gap**2 * B["k0vv"] + A["k1pp"] + accel
+        var_f, var_b = var_f.to_numpy(float), var_b.to_numpy(float)
+        z_f, z_b = (fwd**2).sum(1) / var_f, (bwd**2).sum(1) / var_b
+        var = 0.5 * (var_f + var_b)
+    else:
+        var = _prediction_var(gap, s)
+        fwd = np.c_[B["x0"] - (A["x1"] + A["vx1"] * gap), B["y0"] - (A["y1"] + A["vy1"] * gap)]
+        bwd = np.c_[A["x1"] - (B["x0"] - B["vx0"] * gap), A["y1"] - (B["y0"] - B["vy0"] * gap)]
+        z_f, z_b = (fwd**2).sum(1) / var, (bwd**2).sum(1) / var
     keep = np.maximum(z_f, z_b) <= s["gate_chi2"]
     # a person cannot cover the straight-line distance faster than the speed cap (plus mapping error)
     dist = np.hypot(B["x0"] - A["x1"], B["y0"] - A["y1"]).to_numpy()
@@ -130,11 +181,17 @@ def candidate_pairs(trk: pd.DataFrame, s: dict, appearance: pd.DataFrame | None 
     out = pd.DataFrame({"pred": A["track_id"], "succ": B["track_id"], "gap_s": gap, "cost": 0.5 * (z_f + z_b)})
     # Expected number of *unobserved* team-mates inside the region at least as good as this pair
     # (density x area). Rivals that are observed are handled by decide_links; this bounds the unseen.
-    out["false_matches"] = s["teammate_density_per_m2"] * np.pi * out["cost"] * var
+    # with an undecided team any unseen outfield player could match, not only a team-mate: double the density
+    out["false_matches"] = s["teammate_density_per_m2"] * np.where(open_team, 2.0, 1.0) * np.pi * out["cost"] * var
     if appearance is not None:
         app_z = pd.Series(_appearance_z(out["pred"], out["succ"], appearance, s)).fillna(0.0)
         keep &= (app_z <= s["appearance_gate"]).to_numpy()
         out["cost"] = out["cost"] + 0.5 * app_z**2
+    if reid is not None:
+        from football_cv.tracking import reid_link
+
+        emb, model = reid
+        out["cost"] = out["cost"] + reid_link.reid_llr(out["pred"], out["succ"], emb, model, float(s.get("reid_clip", 2.0)))
     return out[keep].reset_index(drop=True)
 
 
@@ -180,17 +237,25 @@ def assign_identities(track_ids: pd.Series | np.ndarray, links: pd.DataFrame) ->
             x = parent[x]
         return x
 
-    for r in links[links["status"] == "linked"].itertuples():
+    linked = links[links["status"] == "linked"]
+    for r in linked.itertuples():
         ra, rb = find(int(r.pred_track_id)), find(int(r.succ_track_id))
         if ra != rb:
             parent[max(ra, rb)] = min(ra, rb)
-    return pd.DataFrame({"track_id": list(parent), "identity_id": [find(t) for t in parent]})
+    # weakest link of each chain (inf margin = no rival existed -> capped), so a chain is only as sure as its worst join
+    weakest: dict[int, float] = {}
+    for r in linked.itertuples():
+        root = find(int(r.pred_track_id))
+        weakest[root] = min(weakest.get(root, np.inf), min(float(r.margin), MARGIN_CAP))
+    ident = [find(t) for t in parent]
+    return pd.DataFrame({"track_id": list(parent), "identity_id": ident,
+                         "chain_min_margin": [weakest.get(i, np.nan) for i in ident]})
 
 
-def link_tracklets(traj: pd.DataFrame, cfg: dict | None = None, appearance: pd.DataFrame | None = None):
+def link_tracklets(traj: pd.DataFrame, cfg: dict | None = None, appearance: pd.DataFrame | None = None, reid=None):
     """Run the linker. Returns (identity map, decisions table, tracklet summary)."""
     s = settings(cfg)
     trk = tracklet_summary(traj, s["min_samples"])
-    decisions = decide_links(candidate_pairs(trk, s, appearance), s)
+    decisions = decide_links(candidate_pairs(trk, s, appearance, reid), s)
     ids = pd.concat([traj["track_id"], trk["track_id"]]).drop_duplicates()
     return assign_identities(ids, decisions), decisions, trk

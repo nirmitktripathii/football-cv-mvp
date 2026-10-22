@@ -1,0 +1,10 @@
+# Stage 3 guards on the role relabel for window a2_corner_t2707 (docs/role_probe.md stage 3, criteria declared before running).
+extends: inter_napoli_fb4_f5p_a2.yaml
+
+clip:
+  id: inter_napoli_fb4f5q   # run as inter_napoli_fb4f5q_a2_corner_t2707
+
+role_probe:
+  keeper_rule: prior_or_probe_in_area
+  edge_margin_px: 2
+  min_height_px: 20

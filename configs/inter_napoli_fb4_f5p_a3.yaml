@@ -1,0 +1,15 @@
+# Stage 2 role probe on detector boxes for window a3_open_t4800 (docs/role_probe.md, declared before running).
+# Detector tracks are the f5r ones; calibration comes from hand-clicked keyframes; roles are relabelled by the roles stage.
+extends: inter_napoli_fb4_f5r.yaml
+
+clip:
+  id: inter_napoli_fb4f5p   # run as inter_napoli_fb4f5p_a3_open_t4800
+
+calibration:
+  keyframes_file: configs/inter_napoli_a3_keyframes.json
+  motion_method: lk
+  chain_refine: true
+
+role_probe:
+  enabled: true
+  model: models/role_probe/lowo_a3_open_t4800.npz

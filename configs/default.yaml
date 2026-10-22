@@ -42,18 +42,95 @@ detection:
   device: 0             # CUDA device index, or "cpu"
   half: false  # FP16 on GTX 16xx cards returns NaN boxes (verified on this GTX 1650); keep FP32
   batch: 8
+  # Optional second detector used only for the ball (its people are dropped, the main model's ball is dropped).
+  # Keys override this block's, e.g. {backend: yolox, model: ..., yolox_repo: ..., test_size: [704, 1280]}.
+  ball_detector: null
 
 tracking:
   track_activation_threshold: 0.30
   lost_track_buffer_s: 2.0
   minimum_matching_threshold: 0.8
   minimum_consecutive_frames: 2
+  # Grow every box by box_buffer x its size on each side for matching only (C-BIoU); output boxes are unchanged. At 5 fps a
+  # running player often moves more than a box width between samples, so plain IoU loses them. 0 = plain ByteTrack.
+  box_buffer: 0.0
+  # ByteTrack outputs a track only once it has been matched twice, so a person who appears or reappears loses a frame
+  # and one seen once is never output (~18 % of on-pitch detections on the PoC clip). recover gives those back: they
+  # join the neighbouring track they overlap (iou), else become a track of their own when confidence >= keep_confidence.
+  # Off by default: it raises detection recall 0.81 -> 0.93 and HOTA 0.737 -> 0.755 on the audited windows but costs
+  # ID switches (127 -> 361) and IDF1 (0.738 -> 0.709) at keep_confidence 0.8; see docs/poc_replica.md.
+  recover:
+    enabled: false
+    iou: 0.3
+    keep_confidence: 0.8
+    duplicate_iou: 0.7
+  ball:
+    # A ball detection that recurs within static_radius_px (stabilised) in at least static_min_frames other samples
+    # within static_window_s is a spare ball / penalty spot / line mark and is dropped. min_confidence 0 = no floor.
+    static_radius_px: 6.0
+    static_window_s: 2.0
+    static_min_frames: 3
+    min_confidence: 0.0
 
 teams:
   # Torso colour clustering: k=2 kit clusters; referees and goalkeepers are flagged as
   # "other" when their colour is far from both kit centroids.
   min_box_height_px: 18
   other_distance_factor: 2.2
+  # Per-row kit from each track's crop colours over time (Viterbi with a switch cost): a track that the
+  # tracker swapped between opponents changes team where the shirt changes, one odd crop changes nothing.
+  smoothing:
+    enabled: false
+    llr_scale: 20.0   # Lab distance difference per unit of evidence
+    max_llr: 3.0      # cap per crop so one glare crop cannot dominate
+    switch_cost: 8.0  # evidence needed to change team
+    min_evidence: 1.5 # below this total a track keeps its single label
+    split_tracks: false
+  # Rows of a home/away track whose crops stay far from both kits for min_run crops in a row are another person on that
+  # id (the referee after an identity switch): team other, role referee (goalkeeper when the detector said so).
+  # min_gap is in kit-centre separations (1.4 ~ 60 Lab units here). min_run 10 (2 s at 5 fps): referee runs span 17-43 samples,
+  # the false ones (a red away player, a yellow keeper) 3-8. Both picked on the 3-minute clip, so in-sample.
+  outlier_runs:
+    enabled: false
+    min_gap: 1.4
+    min_run: 10
+  # Goalkeeper tracks under min_rel_height x the median player track and at most max_rows long are pitch marks or boards
+  # called keepers (0.3-0.7 x, 1-25 rows on the 3-minute clip); the four real keepers are 0.8-1.1 x and 82+ rows.
+  goalkeeper_gate:
+    enabled: false
+    min_rel_height: 0.7
+    max_rows: 40
+
+offpitch:
+  # After calibration: drop person tracks whose median position is this far outside the lines (staff, substitutes
+  # warming up, ball boys; referees and goalkeepers exempt), and balls that are off the pitch and unlinked to play or
+  # sitting still on a penalty/centre spot. Off by default; see src/football_cv/calibration/offpitch.py.
+  enabled: false
+  people_outside_m: 2.0
+  people_min_rows: 3
+  ball_outside_m: 2.0
+  # Corner flags detected as people: a still person track on a pitch corner (docs/corner_flags.md). Off by default.
+  corner_flags:
+    enabled: false
+    radius_m: 2.5     # median foot distance to the nearest corner
+    still_m: 0.6      # max std of x and of y
+    min_rows: 2
+
+role_probe:
+  # Stage "roles" (after calibrate, before identity): referee and goalkeeper labels from SRITrack crop embeddings plus a
+  # goal-centre keeper prior (docs/role_probe.md stage 2). Off by default. Boxes without a crop or without a usable
+  # calibration keep the detector role. Train the model with scripts/train_role_probe.py.
+  enabled: false
+  model: models/role_probe/all.npz
+  checkpoint: models/sritrack/model.pth.tar-60
+  feature: fc
+  keeper_rule: prior_or_probe   # prior_only: prior alone (Q0); prior_or_probe_in_area: probe-only keepers must be in a penalty area (stage 3)
+  min_side_px: 8
+  edge_margin_px: 2     # stage 3b: boxes within this many px of the frame edge keep the detector role (cut-off people); null = off
+  min_height_px: 20     # stage 3b: boxes shorter than this keep the detector role; null = off
+  penalty_depth_m: 16.5
+  penalty_half_width_m: 20.16
+  tie_m: 2.0
 
 shots:
   # A sampled frame is a usable "wide tactical view" when enough of the image is pitch-green

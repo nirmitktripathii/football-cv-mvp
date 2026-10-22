@@ -1,0 +1,24 @@
+# The PoC chain (poc_segment_roles) at the 10 fps working default, with the roles stage on (stage 3b settings).
+# Everything is recomputed from ingest because the sample grid changes. Keyframes are the same clicks with doubled sample
+# ids. The role probe model is all.npz (trained on the three audited windows; a1 lies inside this clip, 600-610 s).
+extends: poc_segment_roles.yaml
+
+clip:
+  id: poc_seg1f10
+
+sampling:
+  fps: 10.0
+
+tracking:
+  minimum_consecutive_frames: 4
+  ball:
+    static_min_frames: 6
+
+calibration:
+  keyframes_file: configs/poc_segment_keyframes_f10.json
+
+role_probe:
+  enabled: true
+  model: models/role_probe/all.npz
+  edge_margin_px: 2
+  min_height_px: 20

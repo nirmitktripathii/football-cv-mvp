@@ -1,0 +1,39 @@
+{
+  "window": "inter_napoli_fb4_a3_open_t4800",
+  "cvat_task": 2682480,
+  "crowded_first": [
+    21,
+    23,
+    27,
+    31,
+    34,
+    35,
+    36,
+    37,
+    45,
+    46
+  ],
+  "random": [
+    0,
+    7,
+    8,
+    10,
+    11,
+    14,
+    19,
+    39,
+    41,
+    50
+  ],
+  "overlap_pairs": {
+    "20-28": "dark home player hidden behind the red player in the tackle; boxes at 21-23 and 27 are offset-interpolated",
+    "30-34": "two players overlapping (IoU up to 0.81)",
+    "33-38": "red and dark players grappling; boxes at 35-36 read by eye",
+    "44-48": "scrum around the referee; the dark player has no box at 49-50"
+  },
+  "interpolated": {
+    "assistant_referee_top": "34-39",
+    "assistant_referee_bottom": "0-11 (0, 4, 8 by eye)"
+  },
+  "ball_unannotated_frames": "0-17, 22-30, 39, 45-46, 49"
+}

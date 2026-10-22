@@ -1,0 +1,11 @@
+# poc_segment_kit plus per-row outlier runs (referee riding inside player tracks). New clip id; upstream stages copied.
+extends: poc_segment_kit.yaml
+
+clip:
+  id: poc_seg1re
+
+teams:
+  outlier_runs:
+    enabled: true
+  goalkeeper_gate:
+    enabled: true

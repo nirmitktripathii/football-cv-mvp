@@ -138,6 +138,90 @@ def frame_calibrations(
     return out
 
 
+def _pitch_shift_m(Ha: np.ndarray, Hb: np.ndarray, image_shape) -> float:
+    """Largest pitch-plane displacement between two transforms on a grid over the lower image."""
+    h, w = image_shape
+    probe = np.array([[u, v] for v in (h * 0.45, h * 0.7, h * 0.95) for u in (w * 0.1, w * 0.5, w * 0.9)])
+    return float(np.linalg.norm(apply_h(Ha, probe) - apply_h(Hb, probe), axis=1).max())
+
+
+def chain_refine(
+    keyframes: list[hg.Keyframe], motion: pd.DataFrame, frames: pd.DataFrame, frames_root,
+    max_unsupported_s: float = 12.0, accept_cost_px: float = 2.5, min_line_samples: int = 150,
+    max_step_shift_m: float = 2.0,
+) -> pd.DataFrame:
+    """Like ``frame_calibrations`` but every frame is snapped to the visible white lines, frame to frame.
+
+    Each frame belongs to its nearest keyframe in time and is reached by walking outward from it: the previous
+    frame's transform is carried over with the ORB motion and then line-refined (``hg.refine_with_lines``). A
+    refinement counts only if its line cost is at most ``accept_cost_px``, it kept at least ``min_line_samples``
+    line pixels and it moved the pitch grid by at most ``max_step_shift_m``; otherwise the carried-over transform
+    is kept unrefined. Frames more than ``max_unsupported_s`` after the last supported frame are rejected, so
+    drift without line evidence is bounded the same way ``max_keyframe_dt_s`` bounds it for plain propagation.
+    ``calibration_status`` is ``keyframe``, ``propagated`` (line-supported) or ``propagated_unrefined``.
+    """
+    mot = motion.set_index("sample_id")
+    paths = frames.set_index("sample_id")["path"]
+    rows: dict[int, dict] = {}
+    for seg, seg_mot in motion.groupby("segment_id"):
+        kfs = sorted((k for k in keyframes if k.H is not None and k.sample_id in seg_mot["sample_id"].values),
+                     key=lambda k: k.sample_id)
+        ids = sorted(seg_mot["sample_id"].tolist())
+        if not kfs:
+            for sid in ids:
+                rows[sid] = {"sample_id": sid, "timestamp_s": mot.at[sid, "timestamp_s"], "segment_id": seg,
+                             "calibration_status": "no_keyframe", "keyframe_id": -1, "keyframe_dt_s": np.nan}
+            continue
+        owner = {sid: min(kfs, key=lambda k: abs(mot.at[k.sample_id, "timestamp_s"] - mot.at[sid, "timestamp_s"]))
+                 for sid in ids}
+        for k in kfs:
+            t_k = float(mot.at[k.sample_id, "timestamp_s"])
+            rows[k.sample_id] = {
+                "sample_id": k.sample_id, "timestamp_s": t_k, "segment_id": seg, "calibration_status": "keyframe",
+                "keyframe_id": k.sample_id, "keyframe_dt_s": 0.0, "line_cost_px": k.diagnostics.get("line_cost_after_px"),
+                **dict(zip(H_COLS, k.H.ravel().astype(float))),
+            }
+            for direction in (-1, 1):
+                H_prev, id_prev, t_support = k.H, k.sample_id, t_k
+                walk = [s for s in (ids if direction > 0 else ids[::-1]) if (s - k.sample_id) * direction > 0]
+                for sid in walk:
+                    if owner[sid] is not k:
+                        break
+                    t = float(mot.at[sid, "timestamp_s"])
+                    base = {"sample_id": sid, "timestamp_s": t, "segment_id": seg, "keyframe_id": k.sample_id,
+                            "keyframe_dt_s": round(t - t_k, 2)}
+                    H = hg.frame_homography(H_prev, G_of(mot.loc[id_prev]), G_of(mot.loc[sid]))
+                    img = cv2.imread(str(frames_root / paths[sid]))
+                    grass = grass_mask(img)
+                    Hr, diag = hg.refine_with_lines(H, img, grass)
+                    supported = bool(
+                        diag.get("refined") and diag["line_cost_after_px"] <= accept_cost_px
+                        and diag["line_samples_after"] >= min_line_samples
+                        and _pitch_shift_m(H, Hr, img.shape[:2]) <= max_step_shift_m
+                    )
+                    if supported:
+                        H, t_support = Hr, t
+                    ok, why = hg.validate(H, img.shape[:2], grass)
+                    if abs(t - t_support) > max_unsupported_s:
+                        rows[sid] = base | {"calibration_status": "rejected:no line support", "line_cost_px": np.nan}
+                        break
+                    if not ok:
+                        rows[sid] = base | {"calibration_status": f"rejected:{why}", "line_cost_px": np.nan}
+                        break
+                    H_prev, id_prev = H, sid
+                    rows[sid] = base | {
+                        "calibration_status": "propagated" if supported else "propagated_unrefined",
+                        "line_cost_px": diag.get("line_cost_after_px"), **dict(zip(H_COLS, H.ravel().astype(float))),
+                    }
+        for sid in ids:  # frames cut off by a break
+            rows.setdefault(sid, {"sample_id": sid, "timestamp_s": mot.at[sid, "timestamp_s"], "segment_id": seg,
+                                  "calibration_status": "rejected:no line support",
+                                  "keyframe_id": owner[sid].sample_id, "keyframe_dt_s": np.nan})
+    out = pd.DataFrame([rows[s] for s in sorted(rows)])
+    log.info("Chained frame calibration status: %s", out["calibration_status"].value_counts().to_dict())
+    return out
+
+
 def H_of(row) -> np.ndarray:
     """3x3 image -> pitch homography from a calibration row (Series)."""
     return np.array([row[c] for c in H_COLS], dtype=float).reshape(3, 3)

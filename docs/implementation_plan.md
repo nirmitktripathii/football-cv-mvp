@@ -5,6 +5,9 @@ was validated on the real clip, and what was deliberately not done. Rollback: `g
 baseline-v0.1` restores the original pipeline; the new stages are additive and `all` still runs the
 old stages in the same order, with `reconstruct` inserted after `calibrate`.
 
+The tactical-camera upgrade (Inter–Napoli, YOLOX/ByteTrack/SRITrack) is planned separately in
+[implementation_plan_tactical.md](implementation_plan_tactical.md).
+
 | phase | goal | status | where | validated by |
 |---|---|---|---|---|
 | 1 | Audit and baseline | done | `docs/audit_and_findings.md`, tag `baseline-v0.1`, `artifacts/<clip>/baseline_v0.1/` | baseline outputs copied before any change |

@@ -1,0 +1,45 @@
+[
+  {
+    "name": "person",
+    "color": "#33ddff",
+    "type": "rectangle",
+    "attributes": [
+      {
+        "name": "role",
+        "mutable": false,
+        "input_type": "select",
+        "default_value": "unknown",
+        "values": [
+          "player",
+          "goalkeeper",
+          "referee",
+          "unknown"
+        ]
+      },
+      {
+        "name": "team",
+        "mutable": false,
+        "input_type": "select",
+        "default_value": "unknown",
+        "values": [
+          "home",
+          "away",
+          "none",
+          "unknown"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ball",
+    "color": "#ffcc00",
+    "type": "rectangle",
+    "attributes": []
+  },
+  {
+    "name": "ignore",
+    "color": "#888888",
+    "type": "rectangle",
+    "attributes": []
+  }
+]

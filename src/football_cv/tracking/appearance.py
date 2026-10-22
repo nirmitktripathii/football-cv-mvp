@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from football_cv.calibration.shots import GRASS_HIGH, GRASS_LOW
+from football_cv.calibration.shots import kit_pixel_mask
 
 # (name, top, bottom) as fractions of the box height
 BANDS = (("shirt", 0.15, 0.40), ("shorts", 0.45, 0.62), ("socks", 0.78, 0.95))
@@ -38,7 +38,7 @@ def band_colours(image: np.ndarray, box) -> np.ndarray | None:
         if ty2 - ty1 < 2 or tx2 - tx1 < 2:
             return None
         crop = image[ty1:ty2, tx1:tx2]
-        not_grass = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV), GRASS_LOW, GRASS_HIGH) == 0
+        not_grass = kit_pixel_mask(crop)
         if not_grass.sum() < MIN_BAND_PIXELS:
             return None
         out.append(cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)[not_grass].mean(axis=0))

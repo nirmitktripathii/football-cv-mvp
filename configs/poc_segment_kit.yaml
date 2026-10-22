@@ -1,0 +1,6 @@
+# poc_segment_clean with lime-kit pixels no longer masked as grass (referee shirt) in the colour sampling.
+# Separate clip id so poc_seg1rc stays as it was; its detections, shots and motion are copied, not recomputed.
+extends: poc_segment_clean.yaml
+
+clip:
+  id: poc_seg1rd

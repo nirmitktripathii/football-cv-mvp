@@ -13,7 +13,7 @@ from pathlib import Path
 import pandas as pd
 
 from football_cv import config as C
-from football_cv.calibration import homography, motion, projection, shots
+from football_cv.calibration import homography, motion, offpitch, projection, shots
 from football_cv.detection import detector
 from football_cv.ingestion import video
 from football_cv.tracking import teams, tracker
@@ -60,19 +60,35 @@ def _frames(cfg: dict) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def stage_detect(cfg: dict) -> None:
-    from ultralytics.utils.downloads import attempt_download_asset
+def _run_detector(d: dict, frames: pd.DataFrame, out: Path) -> pd.DataFrame:
+    """Detections from one detector spec (the ``detection`` block, or its ``ball_detector`` override)."""
+    backend = d.get("backend", "ultralytics")
+    extra: dict = {}
+    if backend == "yolox":
+        # a local checkpoint (path relative to the repo root) and the pinned YOLOX checkout; nothing is downloaded
+        weights = C.resolve(d["model"])
+        extra = {"backend": "yolox", "yolox_repo": C.resolve(d["yolox_repo"]), "test_size": tuple(d["test_size"])}
+    else:
+        from ultralytics.utils.downloads import attempt_download_asset
 
+        weights = C.resolve(Path("models") / d["model"])
+        weights.parent.mkdir(parents=True, exist_ok=True)
+        attempt_download_asset(str(weights))  # official Ultralytics release asset; cached after first run
+    return detector.detect_frames(
+        frames, out, str(weights), imgsz=int(d["imgsz"]), conf_person=float(d["conf_person"]),
+        conf_ball=float(d["conf_ball"]), device=d["device"], half=bool(d["half"]), batch=int(d["batch"]), **extra,
+    )
+
+
+def stage_detect(cfg: dict) -> None:
     d = cfg["detection"]
     out = C.run_dir(cfg)
     frames = _frames(cfg)
-    weights = C.resolve(Path("models") / d["model"])
-    weights.parent.mkdir(parents=True, exist_ok=True)
-    attempt_download_asset(str(weights))  # official Ultralytics release asset; cached after first run
-    dets = detector.detect_frames(
-        frames, out, str(weights), imgsz=int(d["imgsz"]), conf_person=float(d["conf_person"]),
-        conf_ball=float(d["conf_ball"]), device=d["device"], half=bool(d["half"]), batch=int(d["batch"]),
-    )
+    dets = _run_detector(d, frames, out)
+    if d.get("ball_detector"):
+        # people from the main model, the ball from a second one; its keys override the main block's
+        ball_spec = {k: v for k, v in d.items() if k != "ball_detector"} | {"backend": "ultralytics"} | d["ball_detector"]
+        dets = detector.merge_ball_source(dets, _run_detector(ball_spec, frames, out))
     dets.to_parquet(out / "detections.parquet", index=False)
     summary = detector.detection_summary(dets, len(frames))
     C.write_json(out / "detection_summary.json", summary)
@@ -122,6 +138,7 @@ def stage_motion(cfg: dict) -> None:
     mot = motion.estimate_motion(
         _frames(cfg), out, _read(cfg, "shots.parquet", "shots"), persons,
         n_features=int(c["orb_features"]), min_inliers=int(c["min_inliers"]), max_chain_s=float(c["max_chain_s"]),
+        method=str(c.get("motion_method", "orb")),
     )
     mot.to_parquet(out / "motion.parquet", index=False)
     segs = mot.groupby("segment_id").agg(
@@ -141,10 +158,24 @@ def stage_track(cfg: dict) -> None:
     )
     t = cfg["teams"]
     colours = teams.sample_colours(tr, frames, out, min_box_h=float(t["min_box_height_px"]))
+    roles = teams.majority_role(tr)
+    kit_colours = colours[colours["track_id"].map(roles).fillna("").isin(teams.KIT_ROLES)]
     table, diag = teams.assign_teams(
-        colours, cfg["clip"]["home_kit"], cfg["clip"]["away_kit"], float(t["other_distance_factor"]),
+        kit_colours, cfg["clip"]["home_kit"], cfg["clip"]["away_kit"], float(t["other_distance_factor"]),
     )
-    tr = tr.merge(table[["track_id", "team_id"]], on="track_id", how="left")
+    tr["detector_role"] = tr["role"]  # per-box class from the detector; ``role`` below is the track-level one
+    tr = teams.apply_roles(tr, table, roles)
+    sm = t.get("smoothing", {})
+    if sm.get("enabled", False):
+        tr = teams.smooth_teams(tr, kit_colours, diag["centroids_lab"], sm)
+        if sm.get("split_tracks", False):
+            tr = teams.split_team_switches(tr)
+    oc = t.get("outlier_runs", {})
+    if oc.get("enabled", False):
+        tr = teams.mark_outlier_runs(tr, kit_colours, diag["centroids_lab"], oc)
+    gg = t.get("goalkeeper_gate", {})
+    if gg.get("enabled", False):
+        tr = teams.drop_implausible_goalkeepers(tr, gg)
     tr.loc[tr["object_class"] == "ball", "team_id"] = "ball"
     tr["team_id"] = tr["team_id"].fillna("unknown")
     tr.to_parquet(out / "tracks.parquet", index=False)
@@ -173,13 +204,30 @@ def stage_calibrate(cfg: dict) -> None:
             img = homography.draw_pitch_overlay(img, kf.H)
         cv2.imwrite(str(art / f"keyframe_{kf.sample_id:06d}_overlay.jpg"), img)
     drift = projection.drift_checks(kfs, mot, (720, 1280))
-    calib = projection.frame_calibrations(kfs, mot, frames, out, float(c.get("max_keyframe_dt_s", float("inf"))))
+    if c.get("chain_refine", False):
+        calib = projection.chain_refine(kfs, mot, frames, out, float(c.get("max_keyframe_dt_s", 12.0)))
+    else:
+        calib = projection.frame_calibrations(kfs, mot, frames, out, float(c.get("max_keyframe_dt_s", float("inf"))))
     calib.to_parquet(out / "frame_calibration.parquet", index=False)
 
     tracks = _read(cfg, "tracks.parquet", "track")
     proj = projection.project_tracks(
         tracks, calib, float(c["pitch_margin_m"]), float(c["pitch_length_m"]), float(c["pitch_width_m"])
     )
+    off = cfg.get("offpitch", {})
+    n_off = {}
+    if off.get("enabled", False):
+        length, width = float(c["pitch_length_m"]), float(c["pitch_width_m"])
+        before = len(proj)
+        proj, dropped = offpitch.drop_off_pitch_people(
+            proj, length, width, float(off["people_outside_m"]), int(off["people_min_rows"]))
+        proj = offpitch.reject_unplayable_balls(proj, length, width, float(off["ball_outside_m"]))
+        flags = off.get("corner_flags", {})
+        flag_ids: list[int] = []
+        if flags.get("enabled", False):
+            proj, flag_ids = offpitch.drop_corner_flags(
+                proj, length, width, float(flags["radius_m"]), float(flags["still_m"]), int(flags["min_rows"]))
+        n_off = {"people_tracks": len(dropped), "corner_flag_tracks": flag_ids, "rows": before - len(proj)}
     proj.to_parquet(out / "tracks_projected.parquet", index=False)
     t = cfg["trajectories"]
     traj = clean.clean_trajectories(proj, float(t["max_speed_mps"]), int(t["min_track_points"]))
@@ -191,11 +239,54 @@ def stage_calibrate(cfg: dict) -> None:
         "drift_checks": drift,
         "frames_by_status": {str(k): int(v) for k, v in calib["calibration_status"].value_counts().items()},
         "track_rows_by_status": {str(k): int(v) for k, v in proj["calibration_status"].value_counts().items()},
-        "trajectory_rows": len(traj), "jump_rows": int(traj["jump"].sum()),
+        "offpitch_dropped": n_off, "trajectory_rows": len(traj), "jump_rows": int(traj["jump"].sum()),
     }
     C.write_json(out / "calibration_report.json", report)
     C.write_json(C.artifacts_dir(cfg) / "calibration_report.json", report)
     log.info("Calibration: %s", {k: v for k, v in report.items() if k != "keyframes"})
+
+
+ROLE_COLUMNS = ["role", "team_id", "role_pipeline", "role_source", "role_p_goalkeeper", "role_p_referee"]
+ROW_KEY = ["sample_id", "track_id", "bbox_x1", "bbox_y1"]
+
+
+def _with_roles(df: pd.DataFrame, relabelled: pd.DataFrame) -> pd.DataFrame:
+    """``df`` with the role columns of ``relabelled`` (matched on the row key; row order kept)."""
+    base = df.drop(columns=[c for c in ROLE_COLUMNS if c in df.columns])
+    return base.merge(relabelled[ROW_KEY + ROLE_COLUMNS].drop_duplicates(ROW_KEY), on=ROW_KEY, how="left")
+
+
+def stage_roles(cfg: dict) -> None:
+    """Probe roles and keeper prior on the tracked boxes (needs calibrate); no-op unless ``role_probe.enabled``."""
+    rp = cfg.get("role_probe", {})
+    if not rp.get("enabled", False):
+        log.info("role_probe.enabled is false; roles stage skipped")
+        return
+    import torch
+
+    from football_cv.tracking import role_probe
+    from football_cv.tracking.reid_embed import SriTrackEmbedder
+
+    out, c = C.run_dir(cfg), cfg["calibration"]
+    backup = out / "tracks_pre_roles.parquet"
+    tracks = _read(cfg, "tracks.parquet", "track")
+    if "role_pipeline" in tracks.columns:  # already relabelled: start again from the detector roles
+        tracks = pd.read_parquet(backup)
+    else:
+        tracks.to_parquet(backup, index=False)
+    calib = _read(cfg, "frame_calibration.parquet", "calibrate")
+    kits = pd.read_csv(C.artifacts_dir(cfg) / "track_teams.csv")[["track_id", "team_id"]]
+    kit_team = {int(t): str(k) for t, k in zip(kits["track_id"], kits["team_id"]) if k in ("home", "away")}
+    embedder = SriTrackEmbedder(C.resolve(rp["checkpoint"]), (256, 128), "cuda" if torch.cuda.is_available() else "cpu")
+    new, report = role_probe.relabel(
+        tracks, calib, _frames(cfg), out, role_probe.RoleModel.load(C.resolve(rp["model"])), embedder, kit_team, rp,
+        (float(c["pitch_length_m"]), float(c["pitch_width_m"])))
+    new.to_parquet(out / "tracks.parquet", index=False)
+    for name in ("tracks_projected.parquet", "trajectories.parquet"):
+        if (out / name).exists():
+            _with_roles(pd.read_parquet(out / name), new).to_parquet(out / name, index=False)
+    C.write_json(C.artifacts_dir(cfg) / "role_probe_report.json", report)
+    log.info("Roles: %s", report)
 
 
 def stage_identity(cfg: dict) -> None:
@@ -219,7 +310,23 @@ def stage_identity(cfg: dict) -> None:
                                           min_box_h=float(cfg["teams"]["min_box_height_px"]))
         desc = appearance.describe_tracks(samples)
         desc.to_csv(art / "appearance.csv", index=False)
-    ident, decisions, tracklets = identity.link_tracklets(people, cfg, desc)
+    reid = None
+    if s.get("use_reid", False):
+        import json
+
+        import torch
+
+        from football_cv.tracking import reid_link
+        from football_cv.tracking.reid_embed import SriTrackEmbedder
+
+        embedder = SriTrackEmbedder(C.resolve(s.get("reid_checkpoint", "models/sritrack/model.pth.tar-60")), (256, 128),
+                                    "cuda" if torch.cuda.is_available() else "cpu")
+        emb = reid_link.track_embeddings(_read(cfg, "tracks.parquet", "track"), _frames(cfg), out, embedder,
+                                         min_box_h=float(s.get("reid_min_box_h", reid_link.MIN_BOX_H)))
+        emb.to_parquet(out / "reid_embeddings.parquet", index=False)
+        dist = json.loads(C.resolve(s.get("reid_distance_model", "artifacts/reid_distance_model.json")).read_text(encoding="utf-8"))
+        reid = (emb, dist["features"][s.get("reid_feature", "fc")])
+    ident, decisions, tracklets = identity.link_tracklets(people, cfg, desc, reid)
     ident.to_parquet(out / "identity_map.parquet", index=False)
     decisions.to_csv(art / "link_decisions.csv", index=False)
     tracklets.to_csv(art / "tracklets.csv", index=False)
@@ -229,7 +336,8 @@ def stage_identity(cfg: dict) -> None:
         "by_status": {k: int(v) for k, v in decisions["status"].value_counts().items()} if len(decisions) else {},
         "identities": int(ident["identity_id"].nunique()), "tracks": len(ident),
         "merged_chains": int((chains > 1).sum()), "applied_to_reconstruction": bool(s.get("apply", False)),
-        "appearance_descriptors": 0 if desc is None else len(desc), "settings": s,
+        "appearance_descriptors": 0 if desc is None else len(desc),
+        "reid_tracks_embedded": 0 if reid is None else len(reid[0]), "settings": s,
     }
     C.write_json(art / "identity_summary.json", summary)
     log.info("Identity: %s", {k: v for k, v in summary.items() if k != "settings"})
@@ -404,6 +512,48 @@ def stage_atomic_vaep(cfg: dict) -> None:
     )
 
 
+def stage_replica(cfg: dict) -> None:
+    """Tracking-data export: per-player pitch x/y, speed, distance, ball path and possession (analytics/replica.py)."""
+    from football_cv.analytics import replica
+
+    out, art = C.run_dir(cfg), C.artifacts_dir(cfg) / "replica"
+    art.mkdir(parents=True, exist_ok=True)
+    traj = _read(cfg, "trajectories.parquet", "calibrate")
+    r = cfg.get("replica") or {}
+    p = replica.ReplicaParams(**(r.get("params") or {}))
+    id_path = out / "identity_map.parquet"
+    if r.get("use_identity", False):
+        ident = pd.read_parquet(id_path).rename(columns={"track_id": "track_id_raw"})
+        traj = traj.merge(ident[["track_id_raw", "identity_id"]], left_on="track_id", right_on="track_id_raw", how="left")
+        traj["track_id_raw"] = traj["track_id"]
+        traj["track_id"] = traj["identity_id"].fillna(traj["track_id"]).astype(int)
+    players = replica.player_table(traj, p)
+    if r.get("use_identity", False):
+        # a merged identity is only as sure as its weakest link; NaN = never merged (a single ByteTrack fragment)
+        chain = ident.groupby("identity_id").agg(identity_fragments=("track_id_raw", "size"),
+                                                 identity_min_margin=("chain_min_margin", "min"))
+        players = players.join(chain, on="track_id")
+    calib = _read(cfg, "frame_calibration.parquet", "calibrate")
+    ball = replica.ball_table(_read(cfg, "detections_on_pitch.parquet", "shots"), _read(cfg, "motion.parquet", "motion"), calib)
+    samples = calib[calib["calibration_status"].isin(replica.MEASURED)][["sample_id", "timestamp_s"]]
+    poss = replica.possession_table(players, ball, samples, p)
+    players.to_csv(art / "tracking_players.csv", index=False)
+    ball.to_csv(art / "tracking_ball.csv", index=False)
+    poss.to_csv(art / "possession_by_sample.csv", index=False)
+    per_player = replica.player_summary(players)
+    per_player.to_csv(art / "player_summary.csv", index=False)
+    summary = {
+        "possession": replica.possession_summary(poss), "coverage": replica.coverage_summary(players, traj),
+        "ball": {"rows": len(ball), "detected": int((ball["ball_status"] == "detected").sum()),
+                 "interpolated": int((ball["ball_status"] == "interpolated").sum()),
+                 "with_pitch_position": int(ball["x_m"].notna().sum())},
+        "speed_flags": {k: int(v) for k, v in players["speed_flag"].value_counts().items()},
+        "used_identity_map": bool(r.get("use_identity", False)), "params": p.__dict__,
+    }
+    C.write_json(art / "replica_summary.json", summary)
+    log.info("Replica: %s", summary)
+
+
 STAGES = {
     "ingest": stage_ingest,
     "detect": stage_detect,
@@ -411,6 +561,7 @@ STAGES = {
     "motion": stage_motion,
     "track": stage_track,
     "calibrate": stage_calibrate,
+    "roles": stage_roles,
     "identity": stage_identity,
     "reconstruct": stage_reconstruct,
     "regions": stage_regions,
@@ -418,7 +569,7 @@ STAGES = {
     "visualize": stage_visualize,
 }
 # Not clip-specific and slow (~10 min); run explicitly, never as part of "all".
-EXTRA_STAGES = {"atomic_vaep": stage_atomic_vaep, "reconstruction_eval": stage_reconstruction_eval}
+EXTRA_STAGES = {"replica": stage_replica, "atomic_vaep": stage_atomic_vaep, "reconstruction_eval": stage_reconstruction_eval}
 
 
 def main(argv: list[str] | None = None) -> None:

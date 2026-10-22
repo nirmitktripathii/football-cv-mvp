@@ -1,0 +1,778 @@
+{
+ "_about": "10 fps copy of poc_segment_keyframes.json: the same clicks, sample_id doubled (5 fps sample k = 10 fps sample 2k = the same source frame, checked against frames.parquet after ingest). Manual pitch-landmark clicks for the PoC segment (Inter-Napoli video 600-780 s, clip poc_seg1, one camera segment, 5 fps sample ids 0-900). Pixel positions were read by eye from artifacts/poc_seg1/calibration/annotate_<id>.jpg (scripts/annotate_keyframe.py; Hough candidates plus the grid), so each carries a few pixels of click error. The camera is on the near touchline; image-right is pitch +x; the penalty area in view is the right-hand one (pen_r_*).",
+ "keyframes": [
+  {
+   "sample_id": 0,
+   "note": "t=600 s, right penalty area",
+   "points": [
+    {
+     "landmark": "corner_tr",
+     "image": [
+      803.4,
+      113.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      655.0,
+      190.0
+     ]
+    },
+    {
+     "landmark": "pen_r_arc_bottom",
+     "image": [
+      864.8,
+      339.3
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      1002.9,
+      435.8
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_top",
+     "image": [
+      903.0,
+      213.0
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_bottom",
+     "image": [
+      1081.6,
+      313.7
+     ]
+    },
+    {
+     "landmark": "ga_r_goalline_bottom",
+     "image": [
+      1172.9,
+      295.6
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      700.0,
+      702.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      900.0,
+      656.5
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1100.0,
+      611.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 300,
+   "note": "t=630 s, corner flag at top",
+   "points": [
+    {
+     "landmark": "corner_tr",
+     "image": [
+      731.7,
+      90.6
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      593.0,
+      168.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      924.5,
+      397.2
+     ]
+    },
+    {
+     "landmark": "pen_r_goalline_bottom",
+     "image": [
+      1230.1,
+      332.4
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_top",
+     "image": [
+      828.0,
+      188.0
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_bottom",
+     "image": [
+      1000.0,
+      278.0
+     ]
+    },
+    {
+     "landmark": "ga_r_goalline_bottom",
+     "image": [
+      1085.0,
+      262.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      700.0,
+      641.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      900.0,
+      592.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1100.0,
+      542.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 600,
+   "note": "t=660 s, whole right penalty area and both goal-line corners",
+   "points": [
+    {
+     "landmark": "corner_tr",
+     "image": [
+      354.4,
+      118.0
+     ]
+    },
+    {
+     "landmark": "corner_br",
+     "image": [
+      1224.2,
+      481.1
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      190.0,
+      222.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      615.9,
+      473.0
+     ]
+    },
+    {
+     "landmark": "pen_r_goalline_bottom",
+     "image": [
+      958.0,
+      369.7
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_top",
+     "image": [
+      482.0,
+      230.0
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_bottom",
+     "image": [
+      690.0,
+      325.0
+     ]
+    },
+    {
+     "landmark": "ga_r_goalline_bottom",
+     "image": [
+      782.0,
+      298.0
+     ]
+    },
+    {
+     "landmark": "pen_r_arc_top",
+     "image": [
+      295.0,
+      284.0
+     ]
+    },
+    {
+     "landmark": "pen_r_arc_bottom",
+     "image": [
+      445.0,
+      373.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 900,
+   "note": "t=690 s, right penalty area",
+   "points": [
+    {
+     "landmark": "corner_tr",
+     "image": [
+      671.1,
+      116.7
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      522.0,
+      202.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      883.4,
+      443.3
+     ]
+    },
+    {
+     "landmark": "pen_r_goalline_bottom",
+     "image": [
+      1207.4,
+      368.8
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_top",
+     "image": [
+      778.0,
+      219.0
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_bottom",
+     "image": [
+      962.6,
+      315.3
+     ]
+    },
+    {
+     "landmark": "ga_r_goalline_bottom",
+     "image": [
+      1054.4,
+      296.9
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 1050,
+   "note": "t=705 s, zoomed-out view: halfway line, centre circle, left box edge, right box corner",
+   "points": [
+    {
+     "landmark": "halfway_top",
+     "image": [
+      619.8,
+      227.6
+     ]
+    },
+    {
+     "landmark": "halfway_bottom",
+     "image": [
+      655.8,
+      641.6
+     ]
+    },
+    {
+     "landmark": "circle_top",
+     "image": [
+      627.0,
+      316.0
+     ]
+    },
+    {
+     "landmark": "circle_bottom",
+     "image": [
+      636.0,
+      411.0
+     ]
+    },
+    {
+     "landmark": "pen_l_corner_top",
+     "image": [
+      190.0,
+      288.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      1052.0,
+      257.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      200.0,
+      660.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1000.0,
+      627.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1250.0,
+      616.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 1110,
+   "note": "t=711 s, zoomed-out view",
+   "points": [
+    {
+     "landmark": "halfway_top",
+     "image": [
+      722.0,
+      200.0
+     ]
+    },
+    {
+     "landmark": "halfway_bottom",
+     "image": [
+      748.0,
+      695.0
+     ]
+    },
+    {
+     "landmark": "circle_top",
+     "image": [
+      727.0,
+      303.0
+     ]
+    },
+    {
+     "landmark": "circle_bottom",
+     "image": [
+      733.0,
+      418.0
+     ]
+    },
+    {
+     "landmark": "pen_l_corner_top",
+     "image": [
+      215.0,
+      258.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      300.0,
+      694.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1000.0,
+      694.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 1200,
+   "note": "t=720 s, halfway line at left and right penalty area",
+   "points": [
+    {
+     "landmark": "halfway_top",
+     "image": [
+      190.9,
+      190.5
+     ]
+    },
+    {
+     "landmark": "corner_tr",
+     "image": [
+      918.6,
+      112.9
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      775.0,
+      185.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      1101.8,
+      425.5
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_top",
+     "image": [
+      1010.0,
+      213.0
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_bottom",
+     "image": [
+      1180.0,
+      308.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      700.0,
+      686.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      900.0,
+      649.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1100.0,
+      611.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 1350,
+   "note": "t=735 s, right penalty area, centre circle edge at left",
+   "points": [
+    {
+     "landmark": "corner_tr",
+     "image": [
+      791.0,
+      106.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      645.0,
+      187.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      998.0,
+      437.0
+     ]
+    },
+    {
+     "landmark": "pen_r_arc_bottom",
+     "image": [
+      857.0,
+      338.0
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_top",
+     "image": [
+      897.0,
+      210.0
+     ]
+    },
+    {
+     "landmark": "ga_r_corner_bottom",
+     "image": [
+      1080.0,
+      311.0
+     ]
+    },
+    {
+     "landmark": "ga_r_goalline_bottom",
+     "image": [
+      1175.0,
+      294.0
+     ]
+    },
+    {
+     "landmark": "circle_top",
+     "image": [
+      25.0,
+      342.0
+     ]
+    },
+    {
+     "landmark": "circle_bottom",
+     "image": [
+      59.0,
+      492.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      800.0,
+      683.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1000.0,
+      637.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1200.0,
+      591.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 1500,
+   "note": "t=750 s, zoomed-out view: both penalty-box corners, centre circle",
+   "points": [
+    {
+     "landmark": "halfway_top",
+     "image": [
+      656.0,
+      167.0
+     ]
+    },
+    {
+     "landmark": "halfway_bottom",
+     "image": [
+      690.0,
+      660.0
+     ]
+    },
+    {
+     "landmark": "circle_top",
+     "image": [
+      663.0,
+      270.0
+     ]
+    },
+    {
+     "landmark": "circle_bottom",
+     "image": [
+      671.0,
+      386.0
+     ]
+    },
+    {
+     "landmark": "pen_l_corner_top",
+     "image": [
+      146.0,
+      232.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      1178.0,
+      204.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      100.0,
+      674.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1000.0,
+      654.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1250.0,
+      649.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 1650,
+   "note": "t=765 s, halfway line, centre circle, right penalty area",
+   "points": [
+    {
+     "landmark": "halfway_top",
+     "image": [
+      484.0,
+      168.0
+     ]
+    },
+    {
+     "landmark": "halfway_bottom",
+     "image": [
+      542.0,
+      661.0
+     ]
+    },
+    {
+     "landmark": "corner_tr",
+     "image": [
+      1128.0,
+      128.0
+     ]
+    },
+    {
+     "landmark": "circle_top",
+     "image": [
+      496.0,
+      271.0
+     ]
+    },
+    {
+     "landmark": "circle_bottom",
+     "image": [
+      510.0,
+      390.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      993.0,
+      188.0
+     ]
+    },
+    {
+     "landmark": "pen_r_arc_bottom",
+     "image": [
+      1157.0,
+      323.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      200.0,
+      693.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      800.0,
+      637.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1200.0,
+      599.0
+     ]
+    }
+   ]
+  },
+  {
+   "sample_id": 1800,
+   "note": "t=780 s, halfway line at left, right penalty area",
+   "points": [
+    {
+     "landmark": "halfway_top",
+     "image": [
+      285.0,
+      190.0
+     ]
+    },
+    {
+     "landmark": "corner_tr",
+     "image": [
+      866.0,
+      126.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_top",
+     "image": [
+      757.0,
+      187.0
+     ]
+    },
+    {
+     "landmark": "pen_r_corner_bottom",
+     "image": [
+      1018.1,
+      380.7
+     ]
+    },
+    {
+     "landmark": "pen_r_goalline_bottom",
+     "image": [
+      1275.0,
+      340.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      600.0,
+      614.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      900.0,
+      560.0
+     ]
+    },
+    {
+     "on_line": "touchline_near",
+     "image": [
+      1200.0,
+      498.0
+     ]
+    }
+   ]
+  }
+ ]
+}

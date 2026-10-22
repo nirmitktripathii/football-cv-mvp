@@ -1,0 +1,41 @@
+# Logging + Re-ID proof of concept: a 3-minute wide-view stretch of Inter vs Napoli run with the weights
+# from abdullahtarek/football_analysis (best.pt, local only; see docs/poc_replica.md).
+extends: inter_napoli.yaml
+
+clip:
+  id: poc_seg1
+
+sampling:
+  fps: 5.0
+  start_s: 600.0
+  end_s: 780.0
+
+detection:
+  model: ../data/models/external_football_analysis/best.pt
+  imgsz: 1280
+  conf_person: 0.25
+  conf_ball: 0.10
+
+calibration:
+  keyframes_file: configs/poc_segment_keyframes.json
+  motion_method: lk        # Lucas-Kanade optical flow; ORB drifted 1-2 m per 15-30 s on this segment (docs/poc_replica.md)
+  chain_refine: true       # line-refined chain between keyframes
+
+identity:
+  # Re-ID linking for the PoC export. The default 6-nat ambiguity margin links nothing on this clip. A synthetic
+  # split test (113 long tracks cut in two with a 3 s gap) gave: margin 6 -> 0 links; margin 0.5 + SRITrack -> 53 right,
+  # 1 wrong (47 % recall); margin 0.5 without it -> 29 right, 1 wrong. It is a best case (clean cuts, long tracks, no
+  # edge exits), so the chain's weakest margin is exported as identity_min_margin and nothing is called certain.
+  # Tuned on that same split test (113 tracks, 3 s gap, 40/32/28 px): embedding boxes >= 32 px instead of 40 px lifts the
+  # embedded split pairs 54 -> 87 and recall 47 % -> 54 % at 98 % precision; 28 px adds no right links and 1-2 wrong
+  # ones. allow_unknown_team: with the team hidden on the split halves, recall was 47 % (53 right, 0 wrong) against 54 %
+  # with the team known; without Re-ID it fell from 26 % to 8 %. kalman_ends was tried and left off (no gain, noise).
+  apply: false
+  use_reid: true
+  reid_min_box_h: 32
+  allow_unknown_team: true
+  max_false_matches: 0.5
+  ambiguity_margin: 0.5
+
+replica:
+  use_identity: true

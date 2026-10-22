@@ -1,0 +1,14 @@
+# poc_segment_recover with the ball taken from the YOLOX-m 4-class fine-tune (detection.ball_detector); people still come
+# from the reference weights. Separate clip id so poc_seg1r stays as it was. On the audited windows the reference
+# weights' top-1 ball hits 24/137 at 0.17 precision (no static filter); YOLOX 53/137 at 0.67 (docs/poc_replica.md).
+extends: poc_segment_recover.yaml
+
+clip:
+  id: poc_seg1rb
+
+detection:
+  ball_detector:
+    backend: yolox
+    model: data/models/yolox_m_football4/best_ckpt.pth
+    yolox_repo: data/external/YOLOX
+    test_size: [704, 1280]

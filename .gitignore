@@ -10,6 +10,8 @@ venv/
 data/raw/
 data/processed/
 data/external/
+data/sam3_inputs/
+data/finetune/
 artifacts/
 *.mp4
 # the one short annotated excerpt shown in the README (attribution and takedown note in the README)
@@ -40,3 +42,7 @@ ROBOFLOW_API_KEY*
 *.pth
 *.pth.tar*
 models/sritrack/
+
+# Model checkpoints and third-party source checkouts stay local
+*.pth
+data/models/

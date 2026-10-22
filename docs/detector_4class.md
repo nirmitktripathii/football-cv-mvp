@@ -62,3 +62,5 @@ checkpoint to Drive, copy it to `models/`, and add a YOLOX backend behind the sa
 `football_training_yolo_v5.ipynb` notebook in the reference repo trains YOLOv5, so its recipe needs adapting
 to YOLOX. Hold out whole matches or clips, not random frames, so the score is not inflated by near-duplicate
 frames.
+
+The prepared workflow (dataset builder, Colab notebook, pass criteria) is in [finetune_4class.md](finetune_4class.md).

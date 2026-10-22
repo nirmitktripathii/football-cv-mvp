@@ -53,3 +53,11 @@ evaluation:
       start_s: 4800.0
       end_s: 4810.0
       note: slice of w3, second-half open play
+
+tracking:
+  # Picked on the audited windows a1-a3 (fine-tuned 4-class detector, 5 fps), so optimistic until a held-out window is
+  # scored: HOTA 0.737 -> 0.857, IDF1 0.738 -> 0.860, detection recall 0.807 -> 0.938, precision 0.973 -> 0.936.
+  # The corner window a2 alone gets worse (HOTA 0.824 -> 0.796): buffered boxes confuse players packed in the box.
+  box_buffer: 0.6
+  recover:
+    enabled: true

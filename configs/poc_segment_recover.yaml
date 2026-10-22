@@ -1,0 +1,9 @@
+# poc_segment with the swallowed-detection recovery on (tracking.recover); separate clip id so poc_seg1 stays as it was.
+extends: poc_segment.yaml
+
+clip:
+  id: poc_seg1r
+
+tracking:
+  recover:
+    enabled: true

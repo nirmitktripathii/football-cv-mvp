@@ -29,7 +29,7 @@ MAX_SPEED = 9.0       # m/s, speed cap for hold/cv std growth and velocity estim
 CV_FIT_POINTS = 3     # observations used to estimate velocity for ``cv``
 
 
-def _filter_axis(t, z, observed, sigma_a, sigma_m):
+def _filter_axis(t, z, observed, sigma_a, sigma_m, sigma_v0=SIGMA_VEL0):
     """Forward Kalman filter for one axis; returns (x_pred, P_pred, x_filt, P_filt, F list)."""
     n = len(t)
     xp, Pp = np.zeros((n, 2)), np.zeros((n, 2, 2))
@@ -43,7 +43,7 @@ def _filter_axis(t, z, observed, sigma_a, sigma_m):
                 Pp[i] = Pf[i] = np.nan
                 continue
             xf[i] = [z[i], 0.0]
-            Pf[i] = np.diag([sigma_m**2, SIGMA_VEL0**2])
+            Pf[i] = np.diag([sigma_m**2, sigma_v0**2])
             xp[i], Pp[i] = xf[i], Pf[i]
             started = True
             continue
@@ -75,12 +75,16 @@ def _smooth_axis(xp, Pp, xf, Pf, Fs):
     return xs, Ps
 
 
-def kalman_rts(t, z, observed, sigma_a=SIGMA_ACCEL, sigma_m=SIGMA_MEAS):
-    """(filtered mean, filtered std, smoothed mean, smoothed std); NaN before the first observation."""
+def kalman_rts(t, z, observed, sigma_a=SIGMA_ACCEL, sigma_m=SIGMA_MEAS, sigma_v0=SIGMA_VEL0):
+    """(filtered mean, filtered std, smoothed mean, smoothed std); NaN before the first observation.
+
+    ``sigma_v0`` is the prior velocity spread at the first observation; the defaults are in metres, so a caller
+    working in pixels passes all three of ``sigma_a``, ``sigma_m`` and ``sigma_v0`` in its own units.
+    """
     t = np.asarray(t, float)
     means_f, means_s, var_f, var_s = [], [], [], []
     for ax in (0, 1):
-        xp, Pp, xf, Pf, Fs = _filter_axis(t, z[:, ax], observed, sigma_a, sigma_m)
+        xp, Pp, xf, Pf, Fs = _filter_axis(t, z[:, ax], observed, sigma_a, sigma_m, sigma_v0)
         xs, Ps = _smooth_axis(xp, Pp, xf, Pf, Fs)
         means_f.append(xf[:, 0]); means_s.append(xs[:, 0])
         var_f.append(Pf[:, 0, 0]); var_s.append(Ps[:, 0, 0])

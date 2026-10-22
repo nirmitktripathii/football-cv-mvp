@@ -45,6 +45,64 @@ def class_roles(names: dict[int, str]) -> dict[int, tuple[str, str]]:
     raise ValueError(f"Unrecognised detector classes {dict(names)}; expected COCO or {sorted(FOOTBALL_CLASSES)}")
 
 
+def frame_rows(
+    rec: dict, xyxy: np.ndarray, confs: np.ndarray, classes: np.ndarray,
+    roles: dict[int, tuple[str, str]], conf_person: float, conf_ball: float, provenance: str,
+) -> list[dict]:
+    """Detection rows of one frame from model output, dropping boxes below their object class's confidence floor."""
+    if not np.isfinite(xyxy).all():
+        raise RuntimeError(
+            f"Non-finite boxes on {rec.get('path')}: half-precision inference is unreliable on some GPUs "
+            "(GTX 16xx); set detection.half=false"
+        )
+    rows: list[dict] = []
+    for (x1, y1, x2, y2), c, k in zip(xyxy, confs, classes):
+        object_class, role = roles[int(k)]
+        if c < (conf_person if object_class == "person" else conf_ball):
+            continue
+        rows.append(
+            {
+                "sample_id": rec["sample_id"], "frame_id": rec["frame_id"],
+                "timestamp_s": rec["timestamp_s"], "det_id": len(rows),
+                "object_class": object_class, "role": role, "confidence": float(c),
+                "bbox_x1": float(x1), "bbox_y1": float(y1), "bbox_x2": float(x2), "bbox_y2": float(y2),
+                "model": provenance,
+            }
+        )
+    return rows
+
+
+def _ultralytics_predictor(model_name: str, imgsz: int, min_conf: float, device, half: bool):
+    """``(predict(paths), roles, provenance)`` for an Ultralytics model."""
+    from ultralytics import YOLO  # heavy import kept local so tests can import this module
+
+    model = YOLO(model_name)
+    roles = class_roles(model.names)
+    football = any(role for _, role in roles.values())
+
+    def predict(paths: list[str]):
+        results = model.predict(
+            paths, imgsz=imgsz, conf=min_conf, classes=sorted(roles), agnostic_nms=football,
+            device=device, half=half, verbose=False,
+        )
+        return [
+            (r.boxes.xyxy.cpu().numpy(), r.boxes.conf.cpu().numpy(), r.boxes.cls.cpu().numpy().astype(int))
+            for r in results
+        ]
+
+    return predict, roles, f"ultralytics:{Path(model_name).name}:imgsz{imgsz}"
+
+
+def _yolox_predictor(weights: str, yolox_repo: Path, test_size: tuple[int, int], min_conf: float, device, half: bool):
+    """``(predict(paths), roles, provenance)`` for the fine-tuned YOLOX-m checkpoint (see ``yolox_backend``)."""
+    from football_cv.detection import yolox_backend  # imports torch and the YOLOX checkout only when used
+
+    if half:
+        raise ValueError("the YOLOX backend runs in FP32; set detection.half=false")
+    predictor = yolox_backend.YoloxPredictor(Path(weights), yolox_repo, device, test_size, conf_floor=min_conf)
+    return predictor.predict, class_roles(yolox_backend.CLASS_NAMES), predictor.provenance
+
+
 def detect_frames(
     frames: pd.DataFrame,
     frames_root: Path,
@@ -55,53 +113,45 @@ def detect_frames(
     device: int | str,
     half: bool,
     batch: int,
+    backend: str = "ultralytics",
+    yolox_repo: Path | None = None,
+    test_size: tuple[int, int] | None = None,
 ) -> pd.DataFrame:
-    """Run the detector over every sampled frame listed in ``frames``."""
-    from ultralytics import YOLO  # heavy import kept local so tests can import this module
+    """Run the detector over every sampled frame listed in ``frames``.
 
-    model = YOLO(model_name)
-    roles = class_roles(model.names)
-    football = any(role for _, role in roles.values())
-    provenance = f"ultralytics:{Path(model_name).name}:imgsz{imgsz}"
+    ``backend`` is "ultralytics" (``model_name`` is a weights file or name, ``imgsz`` the input size) or "yolox"
+    (``model_name`` is a checkpoint path, ``yolox_repo`` the pinned YOLOX checkout, ``test_size`` the input ``(h, w)``).
+    """
     min_conf = min(conf_person, conf_ball)
+    if backend == "ultralytics":
+        predict, roles, provenance = _ultralytics_predictor(model_name, imgsz, min_conf, device, half)
+    elif backend == "yolox":
+        if yolox_repo is None or test_size is None:
+            raise ValueError("the yolox backend needs yolox_repo and test_size")
+        predict, roles, provenance = _yolox_predictor(model_name, Path(yolox_repo), test_size, min_conf, device, half)
+    else:
+        raise ValueError(f"unknown detection backend {backend!r}; expected 'ultralytics' or 'yolox'")
     rows: list[dict] = []
     records = frames.to_dict("records")
     for start in range(0, len(records), batch):
         chunk = records[start : start + batch]
-        results = model.predict(
-            [str(frames_root / r["path"]) for r in chunk],
-            imgsz=imgsz, conf=min_conf, classes=sorted(roles), agnostic_nms=football,
-            device=device, half=half, verbose=False,
-        )
-        for rec, res in zip(chunk, results):
-            boxes = res.boxes
-            xyxy = boxes.xyxy.cpu().numpy()
-            confs = boxes.conf.cpu().numpy()
-            classes = boxes.cls.cpu().numpy().astype(int)
-            if not np.isfinite(xyxy).all():
-                raise RuntimeError(
-                    f"Non-finite boxes on {rec['path']}: half-precision inference is unreliable on some GPUs "
-                    "(GTX 16xx); set detection.half=false"
-                )
-            det_id = 0
-            for (x1, y1, x2, y2), c, k in zip(xyxy, confs, classes):
-                object_class, role = roles[k]
-                if c < (conf_person if object_class == "person" else conf_ball):
-                    continue
-                rows.append(
-                    {
-                        "sample_id": rec["sample_id"], "frame_id": rec["frame_id"],
-                        "timestamp_s": rec["timestamp_s"], "det_id": det_id,
-                        "object_class": object_class, "role": role, "confidence": float(c),
-                        "bbox_x1": float(x1), "bbox_y1": float(y1),
-                        "bbox_x2": float(x2), "bbox_y2": float(y2),
-                        "model": provenance,
-                    }
-                )
-                det_id += 1
+        for rec, (xyxy, confs, classes) in zip(chunk, predict([str(frames_root / r["path"]) for r in chunk])):
+            rows += frame_rows(rec, xyxy, confs, classes, roles, conf_person, conf_ball, provenance)
         if (start // batch) % 25 == 0:
             log.info("Detected %d/%d frames", min(start + batch, len(records)), len(records))
     return pd.DataFrame(rows, columns=DETECTION_COLUMNS)
+
+
+def merge_ball_source(people: pd.DataFrame, balls: pd.DataFrame) -> pd.DataFrame:
+    """People from one detector and the ball from another, with ``det_id`` renumbered within each sample.
+
+    The ``model`` column keeps each row's own provenance, so a mixed table still says where every box came from.
+    """
+    out = pd.concat([people[people["object_class"] == "person"], balls[balls["object_class"] == "ball"]],
+                    ignore_index=True)
+    out = out.sort_values(["sample_id", "object_class", "det_id"], ascending=[True, False, True], kind="stable")
+    out["det_id"] = out.groupby("sample_id").cumcount()
+    return out[DETECTION_COLUMNS].reset_index(drop=True)
 
 
 def detection_summary(dets: pd.DataFrame, n_frames: int) -> dict:

@@ -145,3 +145,33 @@ def test_describe_tracks_median_and_minimum_crops():
     rows += [{"track_id": 2, **{c: 10.0 for c in DESCRIPTOR_COLUMNS}} for _ in range(2)]
     desc = describe_tracks(pd.DataFrame(rows))
     assert list(desc.track_id) == [1] and desc.spread.iloc[0] > 0 and desc.n.iloc[0] == 6
+
+
+def test_undecided_team_links_only_when_allowed_and_never_across_confident_teams():
+    a = _track(1, 0, 3, 30, 30)
+    b = _track(2, 4, 8, 42, 30, team="unknown", status="unknown")
+    assert "linked" not in set(_link(a, b)[1].status)
+    cfg = {"identity": {"allow_unknown_team": True}}
+    assert _status(_link(a, b, cfg=cfg)[1], 1, 2) == "linked"
+    other_team = _track(3, 4, 8, 42, 30, team="away")
+    assert _link(a, other_team, cfg=cfg)[1].empty
+
+
+def test_referee_ends_never_link_even_with_unknown_teams_allowed():
+    a = _track(1, 0, 3, 30, 30, team="other", status="other")
+    b = _track(2, 4, 8, 42, 30, team="unknown", status="unknown")
+    assert _link(a, b, cfg={"identity": {"allow_unknown_team": True}})[1].empty
+
+
+def test_kalman_ends_link_a_clean_continuation_and_reject_a_far_one():
+    cfg = {"identity": {"kalman_ends": True}}
+    a = _track(1, 0, 3, 30, 30)
+    assert _status(_link(a, _track(2, 4, 8, 42, 30), cfg=cfg)[1], 1, 2) == "linked"
+    assert _link(a, _track(3, 4, 8, 42, 55), cfg=cfg)[1].empty
+
+
+def test_chain_reports_its_weakest_link_margin():
+    links = pd.DataFrame({"pred_track_id": [5, 7], "succ_track_id": [7, 9], "gap_s": 1.0, "cost": 0.1,
+                          "false_matches": 0.0, "margin": [np.inf, 0.8], "status": "linked"})
+    m = idn.assign_identities([5, 7, 9, 11], links).set_index("track_id").chain_min_margin
+    assert m[5] == m[9] == pytest.approx(0.8) and np.isnan(m[11])

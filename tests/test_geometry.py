@@ -4,7 +4,7 @@ import pytest
 
 from football_cv.calibration import homography as hg
 from football_cv.calibration.motion import apply_h, plausible
-from football_cv.tracking.tracker import stabilize_boxes
+from football_cv.tracking.tracker import buffer_boxes, stabilize_boxes
 
 
 def _camera_h():
@@ -74,3 +74,13 @@ def test_overlay_draws_pitch_lines_without_mutating_input():
     img = np.zeros((720, 1280, 3), np.uint8)
     out = hg.draw_pitch_overlay(img, H_i2p)
     assert out[..., 2].max() == 255 and img.max() == 0
+
+
+def test_buffer_boxes_grows_every_side_by_the_box_size():
+    out = buffer_boxes(np.array([[10.0, 20.0, 20.0, 40.0]]), 0.5)
+    assert np.allclose(out, [[5.0, 10.0, 25.0, 50.0]])
+
+
+def test_zero_buffer_returns_boxes_unchanged():
+    b = np.array([[1.0, 2.0, 3.0, 4.0]])
+    assert np.array_equal(buffer_boxes(b, 0.0), b)

@@ -20,14 +20,19 @@ import pandas as pd
 # HSV range for broadcast pitch grass (OpenCV hue is 0-179).
 GRASS_LOW = np.array([30, 40, 40], dtype=np.uint8)
 GRASS_HIGH = np.array([90, 255, 255], dtype=np.uint8)
+# Inside a person crop, grass is green AND dim. Referee shirts are lime (hue 32-40, inside the grass range) but bright
+# (value ~235 against ~125 for turf, 99th percentile 167), so a brightness cap keeps them. Used for kit colours only.
+PERSON_GRASS_HIGH = np.array([90, 255, 190], dtype=np.uint8)
+MIN_COMPONENT_SHARE = 0.25   # a green component this large relative to the biggest is still pitch
 
 
 def grass_mask(image: np.ndarray) -> np.ndarray:
     """Binary mask (uint8 0/255) of the playing surface, holes from players and lines filled.
 
-    Takes the largest green component and fills its convex hull, so white
-    lines and players standing on the grass count as pitch, while stands,
-    advertising boards and the athletics track do not.
+    Takes the green components that are at least ``MIN_COMPONENT_SHARE`` of the largest one and fills their joint
+    convex hull, so white lines and players standing on the grass count as pitch, while stands, advertising boards and
+    the athletics track do not. Several components are kept because a wide halfway line splits the grass in two, and
+    keeping only the largest left one half of the pitch (and every player on it) outside the mask.
     """
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     green = cv2.inRange(hsv, GRASS_LOW, GRASS_HIGH)
@@ -36,11 +41,19 @@ def grass_mask(image: np.ndarray) -> np.ndarray:
     mask = np.zeros_like(green)
     if n <= 1:
         return mask
-    largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    pts = np.column_stack(np.nonzero(labels == largest)[::-1]).astype(np.int32)
-    hull = cv2.convexHull(pts)
+    areas = stats[1:, cv2.CC_STAT_AREA]
+    keep = 1 + np.flatnonzero(areas >= MIN_COMPONENT_SHARE * areas.max())
+    # The hull of a region equals the hull of its outer contour; hulling every pixel took ~120 ms per frame.
+    contours, _ = cv2.findContours(np.isin(labels, keep).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    hull = cv2.convexHull(np.concatenate(contours))
     cv2.fillConvexPoly(mask, hull, 255)
     return mask
+
+
+def kit_pixel_mask(crop_bgr: np.ndarray) -> np.ndarray:
+    """Boolean mask of the crop's pixels that belong to a person's kit rather than the pitch behind them."""
+    hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV)
+    return cv2.inRange(hsv, GRASS_LOW, PERSON_GRASS_HIGH) == 0
 
 
 def green_ratio(image: np.ndarray) -> float:

@@ -101,6 +101,48 @@ class MotionEstimator:
         return MotionStep(ok, H if ok else None, n_in, why)
 
 
+class LKMotionEstimator(MotionEstimator):
+    """Camera motion from Lucas-Kanade optical flow instead of descriptor matching.
+
+    Corners are tracked from the current frame back to the previous one with pyramidal LK flow; tracks
+    that do not return to their start (forward-backward error above ``fb_px``) are dropped, and the
+    surviving flow vectors give the same frame -> previous-frame homography as the ORB path (RANSAC), so
+    zoom and perspective are modelled, not just a shift. The window and pyramid are large because the
+    samples are 0.2 s apart.
+    """
+
+    def __init__(self, n_features: int = 3000, min_inliers: int = 60, ransac_px: float = 2.0, fb_px: float = 1.0):
+        super().__init__(n_features, min_inliers, ransac_px)
+        self.n_features, self.fb_px = n_features, fb_px
+        self.lk = {"winSize": (31, 31), "maxLevel": 4,
+                   "criteria": (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01)}
+
+    def features(self, image: np.ndarray, mask: np.ndarray):
+        small = cv2.resize(image, None, fx=WORK_SCALE, fy=WORK_SCALE, interpolation=cv2.INTER_AREA)
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        m = cv2.resize(mask, (gray.shape[1], gray.shape[0]), interpolation=cv2.INTER_NEAREST)
+        pts = cv2.goodFeaturesToTrack(gray, self.n_features, qualityLevel=0.01, minDistance=7, mask=m)
+        return pts, gray
+
+    def step(self, prev_feats, cur_feats) -> MotionStep:
+        (_, gray0), (pts1, gray1) = prev_feats, cur_feats
+        if pts1 is None or len(pts1) < self.min_inliers:
+            return MotionStep(False, None, 0, "too few features")
+        p0, st, _ = cv2.calcOpticalFlowPyrLK(gray1, gray0, pts1, None, **self.lk)
+        back, st_b, _ = cv2.calcOpticalFlowPyrLK(gray0, gray1, p0, None, **self.lk)
+        fb = np.linalg.norm((back - pts1).reshape(-1, 2), axis=1)
+        keep = (st.ravel() == 1) & (st_b.ravel() == 1) & (fb < self.fb_px)
+        if int(keep.sum()) < self.min_inliers:
+            return MotionStep(False, None, int(keep.sum()), "too few tracked points")
+        H_small, inl = cv2.findHomography(pts1.reshape(-1, 2)[keep], p0.reshape(-1, 2)[keep], cv2.RANSAC, self.ransac_px)
+        n_in = int(inl.sum()) if inl is not None else 0
+        if H_small is None or n_in < self.min_inliers:
+            return MotionStep(False, None, n_in, "too few inliers")
+        H = _scaled(H_small)
+        ok, why = plausible(H)
+        return MotionStep(ok, H if ok else None, n_in, why)
+
+
 def estimate_motion(
     frames: pd.DataFrame,
     frames_root,
@@ -109,6 +151,7 @@ def estimate_motion(
     n_features: int,
     min_inliers: int,
     max_chain_s: float,
+    method: str = "orb",
 ) -> pd.DataFrame:
     """One row per wide-view frame: segment id, inliers and ``G`` (frame -> segment reference).
 
@@ -116,8 +159,10 @@ def estimate_motion(
     ``max_chain_s`` starts a new segment after that long so accumulated drift
     stays bounded and each segment can be anchored by its own keyframe.
     """
-    est = MotionEstimator(n_features, min_inliers)
-    wide = shots.set_index("sample_id")[["shot_id", "wide_view"]]
+    if method not in ("orb", "lk"):
+        raise ValueError(f"unknown camera-motion method {method!r}; expected 'orb' or 'lk'")
+    est = (LKMotionEstimator if method == "lk" else MotionEstimator)(n_features, min_inliers)
+    wide =shots.set_index("sample_id")[["shot_id", "wide_view"]]
     boxes_by_sample = {
         k: g[["bbox_x1", "bbox_y1", "bbox_x2", "bbox_y2"]].to_numpy() for k, g in persons.groupby("sample_id")
     }
